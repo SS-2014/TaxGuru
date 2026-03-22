@@ -73,12 +73,12 @@ DK=st.session_state.dark_mode
 # Light: clean white bg, dark slate text, teal accents
 if DK:
     # Dark: navy bg, dark grey cards, white text, bright green accent
-    BG="#0F172A";BG2="#1E293B";BD="#334155";TX="#F1F5F9";TX2="#94A3B8";AC="#4ADE80";AC2="#22C55E";HL="#1E293B"
+    BG="#0F172A";BG2="#1E293B";BD="#334155";TX="#F1F5F9";TX2="#CBD5E1";AC="#3B82F6";AC2="#2563EB";HL="#1E293B"
     CTX="#F1F5F9";BTN_BG="#1E293B";BTN_TX="#F1F5F9"
 else:
     # Light: ClearTax-style — white bg, light grey cards, dark text, green accent
-    BG="#FFFFFF";BG2="#F9FAFB";BD="#E5E7EB";TX="#111827";TX2="#4B5563";AC="#059669";AC2="#047857";HL="#F3F4F6"
-    CTX="#111827";BTN_BG="#FFFFFF";BTN_TX="#111827"
+    BG="#FFFFFF";BG2="#F9FAFB";BD="#E5E7EB";TX="#1A1A2E";TX2="#4A4A68";AC="#1D4ED8";AC2="#1E40AF";HL="#F3F4F6"
+    CTX="#1A1A2E";BTN_BG="#1D4ED8";BTN_TX="#FFFFFF"
 
 # ══════ LOGIN ══════
 def check_login():
@@ -145,25 +145,25 @@ h1,h2,h3,h4{{color:{TX}!important;}}p,li,span,.stMarkdown{{color:{TX2};}}
 /* Nav */
 div[data-testid="stHorizontalBlock"]:first-child .stRadio label{{background:{BG2};border:1px solid {BD};border-radius:6px;padding:0.35rem 0.8rem;font-size:0.95rem;font-weight:600;color:{TX};}}
 div[data-testid="stHorizontalBlock"]:first-child .stRadio label:hover{{background:{HL};}}
-div[data-testid="stHorizontalBlock"]:first-child .stRadio div[role="radiogroup"] label:has(input:checked){{background:{AC}!important;color:#FFF!important;border-color:{AC}!important;font-weight:700;}}
+div[data-testid="stHorizontalBlock"]:first-child .stRadio div[role="radiogroup"] label:has(input:checked){{background:{AC}!important;color:#FFFFFF!important;border-color:{AC}!important;font-weight:700;}}
 /* Cards */
 .cd{{background:{BG2};border:1px solid {BD};border-radius:10px;padding:0.8rem;margin:0.3rem 0;font-size:1rem;color:{CTX};}}
 .cd.green{{border-left:3px solid #10B981;}}.cd.amber{{border-left:3px solid #F59E0B;}}.cd.red{{border-left:3px solid #EF4444;}}.cd.blue{{border-left:3px solid #3B82F6;}}
 /* Trust */
 .tg{{display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin:0.5rem 0;}}
-.tt{{background:{BG2};border:1px solid {BD};border-left:4px solid {AC};border-radius:10px;padding:0.9rem;}}.tt h4{{color:{AC2}!important;margin:0 0 0.4rem;font-size:1.15rem;}}.tt ul{{list-style:none;padding:0;margin:0;}}.tt li{{padding:0.15rem 0;font-size:1rem;color:{CTX};line-height:1.5;}}.tt li::before{{content:'✓ ';color:#10B981;font-weight:700;}}
+.tt{{background:{BG2};border:1px solid {BD};border-left:4px solid {AC};border-radius:10px;padding:0.9rem;}}.tt h4{{color:{AC2}!important;margin:0 0 0.4rem;font-size:1.15rem;}}.tt ul{{list-style:none;padding:0;margin:0;}}.tt li{{padding:0.15rem 0;font-size:1rem;color:{CTX};line-height:1.5;}}.tt li::before{{content:'✓ ';color:{AC};font-weight:700;}}
 /* Setup */
-.su{{background:{BG2};border:1px solid {BD};border-radius:10px;padding:0.7rem 1rem;margin:0.6rem 0 0.8rem;text-align:center;}}.su b{{font-size:1.2rem;color:{AC2};}}.su span{{color:{TX2};font-size:1rem;}}
+.su{{background:{BG2};border:1px solid {BD};border-radius:10px;padding:0.7rem 1rem;margin:0.6rem 0 0.8rem;text-align:center;}}.su b{{font-size:1.2rem;color:{AC};}}.su span{{color:{TX2};font-size:1rem;}}
 /* Feature */
 .fb{{background:{BG2};border:1px solid {BD};border-radius:10px;padding:0.8rem;margin-bottom:0.3rem;}}.fb h4{{color:{AC2};margin:0 0 0.2rem;font-size:1.05rem;}}.fb p{{color:{CTX};font-size:0.92rem;margin:0;line-height:1.4;}}
 /* Logo */
 .logo-panel{{background:#FFF;border:1px solid {BD};border-radius:10px;padding:0.5rem;text-align:center;margin-bottom:0.3rem;}}.logo-panel img{{height:200px;}}
 /* Chat */
-.ch{{background:{HL};border:1px solid {BD};padding:0.5rem 0.8rem;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:0.5rem;}}.ch .dot{{width:8px;height:8px;background:#4ADE80;border-radius:50%;animation:p 2s infinite;}}@keyframes p{{0%,100%{{opacity:1}}50%{{opacity:0.4}}}}.ch .nm{{font-weight:700;font-size:1rem;color:{CTX};}}.ch .rl{{font-size:0.85rem;color:{CTX};}}
+.ch{{background:{HL};border:1px solid {BD};padding:0.5rem 0.8rem;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:0.5rem;}}.ch .dot{{width:8px;height:8px;background:#3B82F6;border-radius:50%;animation:p 2s infinite;}}@keyframes p{{0%,100%{{opacity:1}}50%{{opacity:0.4}}}}.ch .nm{{font-weight:700;font-size:1rem;color:{CTX};}}.ch .rl{{font-size:0.85rem;color:{CTX};}}
 .cd2{{font-size:0.85rem;color:{TX2};font-style:italic;margin-top:0.3rem;}}
 .pv{{background:{"#172554" if DK else "#EFF6FF"};border:1px solid {"#1E40AF" if DK else "#BFDBFE"};border-radius:6px;padding:0.4rem 0.7rem;font-size:0.9rem;color:{"#93C5FD" if DK else "#1E40AF"};margin-bottom:0.5rem;}}
 /* Table */
-.cmp-tbl{{width:100%;border-collapse:collapse;margin:0.5rem 0;}}.cmp-tbl th{{background:{BG2};color:{AC2};padding:0.5rem;text-align:right;border:1px solid {BD};}}.cmp-tbl th:first-child{{text-align:left;}}.cmp-tbl td{{padding:0.4rem 0.5rem;border:1px solid {BD};color:{TX};text-align:right;}}.cmp-tbl td:first-child{{text-align:left;color:{TX2};}}.cmp-tbl tr.total{{background:{HL};font-weight:700;}}.cmp-tbl tr.total td{{color:{AC2};font-size:1.05rem;}}
+.cmp-tbl{{width:100%;border-collapse:collapse;margin:0.5rem 0;}}.cmp-tbl th{{background:{BG2};color:{AC2};padding:0.5rem;text-align:right;border:1px solid {BD};}}.cmp-tbl th:first-child{{text-align:left;}}.cmp-tbl td{{padding:0.4rem 0.5rem;border:1px solid {BD};color:{TX};text-align:right;}}.cmp-tbl td:first-child{{text-align:left;color:{TX2};}}.cmp-tbl tr.total{{background:{HL};font-weight:700;}}.cmp-tbl tr.total td{{color:{AC};font-size:1.05rem;font-weight:700;}}
 /* Inputs */
 [data-testid="stSelectbox"]>div>div,[data-testid="stMultiSelect"]>div>div{{background:{BG2}!important;color:{TX}!important;border-color:{BD}!important;}}
 [data-testid="stNumberInput"] input,.stTextInput input{{background:{BG2}!important;color:{TX}!important;border-color:{BD}!important;}}
@@ -172,7 +172,7 @@ div[data-testid="stHorizontalBlock"]:first-child .stRadio div[role="radiogroup"]
 [data-testid="stMetric"]{{background:{BG2};border:1px solid {BD};border-radius:8px;padding:0.5rem;}}[data-testid="stMetricValue"]{{color:{AC}!important;}}[data-testid="stMetricLabel"]{{color:{TX2}!important;}}
 /* Buttons */
 .stButton>button[kind="primary"],.stButton>button[data-testid="stBaseButton-primary"]{{background:{AC}!important;color:#FFFFFF!important;border:none!important;font-weight:700!important;font-size:1rem!important;-webkit-text-fill-color:#FFFFFF!important;border-radius:8px!important;}}
-.stButton>button:not([kind="primary"]){{background:{BG}!important;color:{TX}!important;border:1px solid {BD}!important;font-weight:600!important;-webkit-text-fill-color:{TX}!important;border-radius:8px!important;}}
+.stButton>button:not([kind="primary"]){{background:{BG}!important;color:{AC}!important;border:2px solid {AC}!important;font-weight:600!important;-webkit-text-fill-color:{AC}!important;border-radius:8px!important;}}
 /* Chat input */
 [data-testid="stChatInput"] textarea{{background:#FFF!important;color:#000!important;font-size:1rem!important;-webkit-text-fill-color:#000!important;min-height:200px!important;height:200px!important;}}
 [data-testid="stChatInput"]{{background:#FFF!important;border:2px solid {BD};border-radius:8px;}}
@@ -191,14 +191,12 @@ TABS=["Home","Tax Profile","Tax Calculator","Savings Finder","What-If Scenarios"
 if 'nav_radio' not in st.session_state:st.session_state.nav_radio="Home"
 nc1,nc2,nc3=st.columns([9,1,1])
 with nc1:sel=st.radio("",TABS,horizontal=True,label_visibility="collapsed",key="nav_radio")
-with nc2:st.button("☀/🌙",key="tb",on_click=toggle_theme,help="Light/Dark mode")
+with nc2:st.button("Dark/Light",key="tb",on_click=toggle_theme)
 with nc3:
     if st.button("Logout",key="lo"):
         for k in list(st.session_state.keys()):del st.session_state[k]
         st.rerun()
 st.session_state.pg=sel
-if sel in ("Tax Calculator","Savings Finder","What-If Scenarios") and IC():st.caption(f"📋 Profile: **{st.session_state.active_profile}**")
-
 # Session
 if 'profiles' not in st.session_state:st.session_state.profiles={'Default':TaxpayerProfile()}
 if 'active_profile' not in st.session_state:st.session_state.active_profile='Default'
@@ -208,6 +206,12 @@ if 'vdb' not in st.session_state:st.session_state.vdb=TaxVectorDB();st.session_s
 K=st.secrets.get("GEMINI_API_KEY",os.environ.get("GEMINI_API_KEY",""))
 def P():return st.session_state.profiles.get(st.session_state.active_profile,TaxpayerProfile())
 def IC():return st.session_state.pc and st.session_state.active_profile in st.session_state.profiles
+# Profile indicator
+if 'nav_radio' in st.session_state:
+    _sel=st.session_state.get('pg','Home')
+    if _sel in ("Tax Calculator","Savings Finder","What-If Scenarios") and IC():
+        st.caption(f"📋 Profile: **{st.session_state.active_profile}**")
+
 SHORT="""You are {agent_name}, Indian tax advisor. CONCISE: 3-4 sentences. No intro/disclaimer. Cite sections."""
 
 # NAV MOVED AFTER LOGIN
