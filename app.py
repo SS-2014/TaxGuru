@@ -72,9 +72,13 @@ DK=st.session_state.dark_mode
 # Dark: deep navy bg, bright white text, teal accents
 # Light: clean white bg, dark slate text, teal accents
 if DK:
-    BG="#0F172A";BG2="#1E293B";BD="#334155";TX="#F8FAFC";TX2="#CBD5E1";AC="#2DD4BF";AC2="#14B8A6";HL="#1E293B"
+    # Dark mode: dark page, LIGHT cards, dark text on cards
+    BG="#0F172A";BG2="#F1F5F9";BD="#CBD5E1";TX="#F1F5F9";TX2="#94A3B8";AC="#4ADE80";AC2="#22C55E";HL="#E2E8F0"
+    CTX="#0F172A";BTN_BG="#F1F5F9";BTN_TX="#0F172A"  # card text, button colors
 else:
-    BG="#FFFFFF";BG2="#F8FAFC";BD="#E2E8F0";TX="#0F172A";TX2="#475569";AC="#0D9488";AC2="#0F766E";HL="#F1F5F9"
+    # Light mode: light page, DARK cards, white text on cards  
+    BG="#F8FAFC";BG2="#1E293B";BD="#334155";TX="#0F172A";TX2="#475569";AC="#22C55E";AC2="#16A34A";HL="#111827"
+    CTX="#F1F5F9";BTN_BG="#1E293B";BTN_TX="#F1F5F9"  # card text, button colors"
 
 # ══════ LOGIN ══════
 def check_login():
@@ -141,21 +145,21 @@ h1,h2,h3,h4{{color:{TX}!important;}}p,li,span,.stMarkdown{{color:{TX2};}}
 /* Nav */
 div[data-testid="stHorizontalBlock"]:first-child .stRadio label{{background:{BG2};border:1px solid {BD};border-radius:6px;padding:0.35rem 0.8rem;font-size:0.95rem;font-weight:600;color:{TX};}}
 div[data-testid="stHorizontalBlock"]:first-child .stRadio label:hover{{background:{HL};}}
-div[data-testid="stHorizontalBlock"]:first-child .stRadio div[role="radiogroup"] label:has(input:checked){{background:{AC}!important;color:#FFF!important;border-color:{AC}!important;font-weight:700;}}
+div[data-testid="stHorizontalBlock"]:first-child .stRadio div[role="radiogroup"] label:has(input:checked){{background:{AC}!important;color:#000!important;border-color:{AC}!important;font-weight:700;}}
 /* Cards */
-.cd{{background:{BG2};border:1px solid {BD};border-radius:10px;padding:0.8rem;margin:0.3rem 0;font-size:1rem;color:{TX};}}
+.cd{{background:{BG2};border:1px solid {BD};border-radius:10px;padding:0.8rem;margin:0.3rem 0;font-size:1rem;color:{CTX};}}
 .cd.green{{border-left:3px solid #10B981;}}.cd.amber{{border-left:3px solid #F59E0B;}}.cd.red{{border-left:3px solid #EF4444;}}.cd.blue{{border-left:3px solid #3B82F6;}}
 /* Trust */
 .tg{{display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin:0.5rem 0;}}
-.tt{{background:{HL};border:2px solid {AC};border-radius:10px;padding:0.9rem;}}.tt h4{{color:{AC2}!important;margin:0 0 0.4rem;font-size:1.15rem;}}.tt ul{{list-style:none;padding:0;margin:0;}}.tt li{{padding:0.15rem 0;font-size:1rem;color:{TX};line-height:1.5;}}.tt li::before{{content:'✓ ';color:#10B981;font-weight:700;}}
+.tt{{background:{HL};border:2px solid {AC};border-radius:10px;padding:0.9rem;}}.tt h4{{color:{AC2}!important;margin:0 0 0.4rem;font-size:1.15rem;}}.tt ul{{list-style:none;padding:0;margin:0;}}.tt li{{padding:0.15rem 0;font-size:1rem;color:{CTX};line-height:1.5;}}.tt li::before{{content:'✓ ';color:#10B981;font-weight:700;}}
 /* Setup */
 .su{{background:{HL};border:2px solid {AC};border-radius:10px;padding:0.7rem 1rem;margin:0.6rem 0 0.8rem;text-align:center;}}.su b{{font-size:1.2rem;color:{AC2};}}.su span{{color:{TX2};font-size:1rem;}}
 /* Feature */
-.fb{{background:{BG2};border:1px solid {BD};border-radius:10px;padding:0.8rem;margin-bottom:0.3rem;}}.fb h4{{color:{AC2};margin:0 0 0.2rem;font-size:1.05rem;}}.fb p{{color:{TX2};font-size:0.92rem;margin:0;line-height:1.4;}}
+.fb{{background:{BG2};border:1px solid {BD};border-radius:10px;padding:0.8rem;margin-bottom:0.3rem;}}.fb h4{{color:{AC2};margin:0 0 0.2rem;font-size:1.05rem;}}.fb p{{color:{CTX};font-size:0.92rem;margin:0;line-height:1.4;}}
 /* Logo */
 .logo-panel{{background:#FFF;border:1px solid {BD};border-radius:10px;padding:0.5rem;text-align:center;margin-bottom:0.3rem;}}.logo-panel img{{height:200px;}}
 /* Chat */
-.ch{{background:{BG2};border:1px solid {BD};padding:0.5rem 0.8rem;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:0.5rem;}}.ch .dot{{width:8px;height:8px;background:#4ADE80;border-radius:50%;animation:p 2s infinite;}}@keyframes p{{0%,100%{{opacity:1}}50%{{opacity:0.4}}}}.ch .nm{{font-weight:700;font-size:1rem;color:{TX};}}.ch .rl{{font-size:0.85rem;color:{TX2};}}
+.ch{{background:{BG2};border:1px solid {BD};padding:0.5rem 0.8rem;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:0.5rem;}}.ch .dot{{width:8px;height:8px;background:#4ADE80;border-radius:50%;animation:p 2s infinite;}}@keyframes p{{0%,100%{{opacity:1}}50%{{opacity:0.4}}}}.ch .nm{{font-weight:700;font-size:1rem;color:{CTX};}}.ch .rl{{font-size:0.85rem;color:{CTX};}}
 .cd2{{font-size:0.85rem;color:{TX2};font-style:italic;margin-top:0.3rem;}}
 .pv{{background:{"#172554" if DK else "#EFF6FF"};border:1px solid {"#1E40AF" if DK else "#BFDBFE"};border-radius:6px;padding:0.4rem 0.7rem;font-size:0.9rem;color:{"#93C5FD" if DK else "#1E40AF"};margin-bottom:0.5rem;}}
 /* Table */
@@ -167,8 +171,8 @@ div[data-testid="stHorizontalBlock"]:first-child .stRadio div[role="radiogroup"]
 [data-testid="stExpander"]{{background:{BG2};border:1px solid {BD};border-radius:8px;}}[data-testid="stExpander"] summary{{color:{TX}!important;}}
 [data-testid="stMetric"]{{background:{BG2};border:1px solid {BD};border-radius:8px;padding:0.5rem;}}[data-testid="stMetricValue"]{{color:{AC}!important;}}[data-testid="stMetricLabel"]{{color:{TX2}!important;}}
 /* Buttons */
-.stButton>button[kind="primary"],.stButton>button[data-testid="stBaseButton-primary"]{{background:{AC}!important;color:#FFF!important;border:none!important;font-weight:800!important;font-size:1rem!important;-webkit-text-fill-color:#FFF!important;}}
-.stButton>button:not([kind="primary"]){{background:{BG2}!important;color:{TX}!important;border:1px solid {BD}!important;font-weight:700!important;-webkit-text-fill-color:{TX}!important;}}
+.stButton>button[kind="primary"],.stButton>button[data-testid="stBaseButton-primary"]{{background:{AC}!important;color:#000!important;border:none!important;font-weight:800!important;font-size:1rem!important;-webkit-text-fill-color:#000!important;}}
+.stButton>button:not([kind="primary"]){{background:{BTN_BG}!important;color:{BTN_TX}!important;border:1px solid {BD}!important;font-weight:700!important;-webkit-text-fill-color:{BTN_TX}!important;}}
 /* Chat input */
 [data-testid="stChatInput"] textarea{{background:#FFF!important;color:#000!important;font-size:1rem!important;-webkit-text-fill-color:#000!important;min-height:200px!important;height:200px!important;}}
 [data-testid="stChatInput"]{{background:#FFF!important;border:2px solid {BD};border-radius:8px;}}
@@ -235,9 +239,9 @@ if sel=="Home":
         with bc1:st.button("📄 Upload Payslip / Form 16",use_container_width=True,type="primary",on_click=nav,args=("Tax Profile",))
         with bc2:st.button("✏️ Enter Manually",use_container_width=True,on_click=nav,args=("Tax Profile",))
         fc1,fc2,fc3=st.columns(3)
-        with fc1:st.markdown(f'<div class="fb"><h4>⚖️ Tax Calculator</h4><p>Old vs New — exact savings.</p></div>',unsafe_allow_html=True);st.button("Calculator →",use_container_width=True,key="h1",on_click=nav,args=("Tax Calculator",))
-        with fc2:st.markdown(f'<div class="fb"><h4>🔀 What-If</h4><p>Raise, loan, sale — see impact.</p></div>',unsafe_allow_html=True);st.button("Scenarios →",use_container_width=True,key="h4",on_click=nav,args=("What-If Scenarios",))
-        with fc3:st.markdown(f'<div class="fb"><h4>💡 Savings</h4><p>What to invest, by when.</p></div>',unsafe_allow_html=True);st.button("Savings →",use_container_width=True,key="h3",on_click=nav,args=("Savings Finder",))
+        with fc1:st.markdown(f'<div class="fb"><h4>⚖️ Tax Calculator</h4><p>Old vs New regime side-by-side — see exact savings in rupees, not percentages. Know which regime is better for your specific situation.</p></div>',unsafe_allow_html=True);st.button("Open Tax Calculator →",use_container_width=True,key="h1",on_click=nav,args=("Tax Calculator",))
+        with fc2:st.markdown(f'<div class="fb"><h4>🔀 What-If Scenarios</h4><p>Getting a raise? Taking a home loan? Investing in ELSS? Selling shares? See exactly how each life event changes your tax — before you decide.</p></div>',unsafe_allow_html=True);st.button("Open What-If Scenarios →",use_container_width=True,key="h4",on_click=nav,args=("What-If Scenarios",))
+        with fc3:st.markdown(f'<div class="fb"><h4>💡 Savings Finder</h4><p>Personalized recommendations — which section to invest under, exactly how much, and by when. With precise tax impact for each suggestion.</p></div>',unsafe_allow_html=True);st.button("Open Savings Finder →",use_container_width=True,key="h3",on_click=nav,args=("Savings Finder",))
         st.markdown(f'<div class="tg"><div class="tt"><h4>🛡️ Always Accurate</h4><ul><li>Tax numbers from a precise calculation engine — not AI guesses</li><li>Every answer cites the actual Income Tax Act section</li><li>TaxGuru says "check with a CA" when unsure — never makes things up</li><li>Updated real-time with Budget 2026 changes, circulars, court judgements</li></ul></div><div class="tt"><h4>🔒 Your Data Stays Private</h4><ul><li>We never see your PAN, Aadhaar, address, DOB, phone, or email</li><li>Bank accounts, PF/UAN, employer name — all auto-deleted</li><li>Only salary/deduction numbers used — in your browser session only</li><li>Close the browser → everything gone. Nothing saved. Ever.</li></ul></div></div>',unsafe_allow_html=True)
     with c2:chat_col("home")
 
