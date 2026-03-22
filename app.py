@@ -32,10 +32,23 @@ def toggle_theme():st.session_state.dark_mode=not st.session_state.dark_mode
 def hash_pw(pw):return hashlib.sha256(pw.encode()).hexdigest()
 @st.cache_resource
 def _get_db():
-    url=st.secrets.get("SUPABASE_URL","");key=st.secrets.get("SUPABASE_KEY","")
-    if not url or not key:return None
-    try:from supabase import create_client;return create_client(url,key)
-    except:return None
+    # Try env vars first (Replit), then st.secrets (Streamlit Cloud)
+    url=os.environ.get("SUPABASE_URL","")
+    key=os.environ.get("SUPABASE_KEY","")
+    if not url:
+        try:url=st.secrets.get("SUPABASE_URL","")
+        except:pass
+    if not key:
+        try:key=st.secrets.get("SUPABASE_KEY","")
+        except:pass
+    if not url or not key:
+        return None
+    try:
+        from supabase import create_client
+        return create_client(url,key)
+    except Exception as e:
+        st.error(f"DB error: {e}")
+        return None
 def _db_get_user(e):
     db=_get_db()
     if not db:return None
@@ -213,7 +226,8 @@ if 'active_profile' not in st.session_state:st.session_state.active_profile='Def
 if 'pc' not in st.session_state:st.session_state.pc=False
 if 'ch' not in st.session_state:st.session_state.ch=[]
 if 'vdb' not in st.session_state:st.session_state.vdb=TaxVectorDB();st.session_state.vdb.index_knowledge_base(TAX_KNOWLEDGE_BASE)
-K=st.secrets.get("GEMINI_API_KEY",os.environ.get("GEMINI_API_KEY",""))
+try:K=os.environ.get("GEMINI_API_KEY","") or st.secrets.get("GEMINI_API_KEY","")
+except:K=os.environ.get("GEMINI_API_KEY","")
 def P():return st.session_state.profiles.get(st.session_state.active_profile,TaxpayerProfile())
 def IC():return st.session_state.pc and st.session_state.active_profile in st.session_state.profiles
 # Profile indicator
