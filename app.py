@@ -1,4 +1,4 @@
-"""TaxGuru v11"""
+"""TaxGuru v12 — Multi-profile, logout, side-by-side calculator, profile management"""
 import streamlit as st
 import sys,os,copy,random,json,hashlib
 sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
@@ -6,132 +6,140 @@ from tax_engine import TaxpayerProfile,compare_regimes,format_currency,format_la
 from knowledge_base import TAX_KNOWLEDGE_BASE
 from gemini_integration import call_gemini,analyze_document,build_rag_query,anonymize_text,extract_financial_only
 from vector_db import TaxVectorDB
-# Load logo first so we can use it as favicon
+
+# Load logo FIRST for favicon
 LOGO=""
 _p=os.path.join(os.path.dirname(os.path.abspath(__file__)),'logo_app_b64.txt')
 if os.path.exists(_p):
     with open(_p) as f:LOGO=f.read().strip()
-
-# Create favicon from logo
-_favicon="🏛️"
+_fav="🏛️"
 if LOGO:
     try:
-        import base64;from PIL import Image as PILImage;import io
-        _img=PILImage.open(io.BytesIO(base64.b64decode(LOGO)))
-        _img.thumbnail((32,32),PILImage.LANCZOS)
-        _favicon=_img
-    except:pass
+        import base64 as b64m;from PIL import Image as PI;import io as iom
+        _fav=PI.open(iom.BytesIO(b64m.b64decode(LOGO)));_fav.thumbnail((32,32),PI.LANCZOS)
+    except:_fav="🏛️"
+st.set_page_config(page_title="TaxGuru",page_icon=_fav,layout="wide",initial_sidebar_state="collapsed")
 
-st.set_page_config(page_title="TaxGuru",page_icon=_favicon,layout="wide",initial_sidebar_state="collapsed")
 if 'ag' not in st.session_state:st.session_state.ag=random.choice(["Karthik","Kavya"])
 A=st.session_state.ag
 
-# ══════ SUPABASE LOGIN SYSTEM ══════
+def nav(p):st.session_state.pg=p;st.session_state.nav_radio=p
+if 'pg' not in st.session_state:st.session_state.pg='Home'
+
+# ══════ SUPABASE ══════
 def hash_pw(pw):return hashlib.sha256(pw.encode()).hexdigest()
 
 @st.cache_resource
 def _get_db():
-    """Initialize Supabase client (cached, runs once)"""
-    url=st.secrets.get("SUPABASE_URL","")
-    key=st.secrets.get("SUPABASE_KEY","")
+    url=st.secrets.get("SUPABASE_URL","");key=st.secrets.get("SUPABASE_KEY","")
     if not url or not key:return None
     try:
-        from supabase import create_client
-        return create_client(url,key)
+        from supabase import create_client;return create_client(url,key)
     except:return None
 
 def _db_get_user(email):
     db=_get_db()
     if not db:return None
-    try:
-        r=db.table("users").select("*").eq("email",email).execute()
-        return r.data[0] if r.data else None
+    try:r=db.table("users").select("*").eq("email",email).execute();return r.data[0] if r.data else None
     except:return None
 
 def _db_create_user(email,pw_hash):
     db=_get_db()
     if not db:return False
-    try:
-        db.table("users").insert({"email":email,"password_hash":pw_hash,"profile_data":{}}).execute()
-        return True
+    try:db.table("users").insert({"email":email,"password_hash":pw_hash,"profile_data":{}}).execute();return True
     except:return False
 
-def _db_save_profile(email,profile_dict):
+def _db_save_profiles(email,profiles_dict):
     db=_get_db()
     if not db:return
-    try:db.table("users").update({"profile_data":profile_dict,"updated_at":"now()"}).eq("email",email).execute()
+    try:db.table("users").update({"profile_data":profiles_dict}).eq("email",email).execute()
     except:pass
 
-def _db_load_profile(email):
+def _db_load_profiles(email):
     user=_db_get_user(email)
-    if user and user.get('profile_data'):
-        p=TaxpayerProfile()
-        for k,v in user['profile_data'].items():
-            if hasattr(p,k):setattr(p,k,v)
-        return p
-    return None
+    if user and user.get('profile_data') and isinstance(user['profile_data'],dict):
+        return user['profile_data']
+    return {}
 
+def save_all_profiles():
+    email=st.session_state.get('user_email')
+    if email and _get_db():
+        all_p={}
+        for name,prof in st.session_state.profiles.items():
+            all_p[name]={k:v for k,v in vars(prof).items() if not k.startswith('_')}
+        _db_save_profiles(email,all_p)
+
+# ══════ LOGIN PAGE ══════
 def check_login():
-    """Returns True if logged in, shows login form if not"""
     if st.session_state.get('logged_in'):return True
-    
-    # Check if Supabase is configured
     has_db=_get_db() is not None
-    
-    st.markdown('<div style="max-width:420px;margin:2rem auto;padding:2rem;background:#111827;border:1px solid #374151;border-radius:12px">',unsafe_allow_html=True)
-    if LOGO:st.markdown(f'<div style="text-align:center"><img src="data:image/png;base64,{LOGO}" style="height:100px"></div>',unsafe_allow_html=True)
-    st.markdown("### Welcome to TaxGuru")
-    if has_db:st.markdown("Log in to save your tax profile across sessions.")
-    else:st.markdown("Enter to start planning your taxes.")
-    
+
+    # Full-page dark login with centered card
+    st.markdown("""<style>
+    .login-wrap{max-width:440px;margin:1.5rem auto;padding:0;}
+    .login-card{background:linear-gradient(135deg,#111827,#1E293B);border:1px solid #D4A843;border-radius:16px;padding:2rem;box-shadow:0 8px 32px rgba(0,0,0,0.3);}
+    .login-logo{text-align:center;padding:1rem;margin-bottom:1rem;background:#FFFFFF;border-radius:12px;border:1px solid #E5E7EB;}
+    .login-logo img{height:120px;}
+    .login-tagline{text-align:center;color:#D4A843;font-size:1.1rem;margin:0.5rem 0 1rem;font-weight:600;}
+    .login-features{display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin:1rem 0;}
+    .login-feat{background:#0B0F19;border:1px solid #374151;border-radius:8px;padding:0.5rem;text-align:center;font-size:0.8rem;color:#CBD5E1;}
+    .login-feat b{color:#D4A843;display:block;font-size:0.85rem;}
+    </style>""",unsafe_allow_html=True)
+
+    st.markdown('<div class="login-wrap">',unsafe_allow_html=True)
+    if LOGO:st.markdown(f'<div class="login-logo"><img src="data:image/png;base64,{LOGO}"></div>',unsafe_allow_html=True)
+    st.markdown('<div class="login-tagline">AI-powered Indian tax advisor • FY 2025-26</div>',unsafe_allow_html=True)
+
     if has_db:
-        tab1,tab2=st.tabs(["Login","Sign Up"])
+        tab1,tab2=st.tabs(["🔑 Login","✨ Sign Up"])
         with tab1:
-            email=st.text_input("Email",key="login_email")
-            pw=st.text_input("Password",type="password",key="login_pw")
-            if st.button("Log In",type="primary",use_container_width=True):
+            email=st.text_input("Email",key="le",placeholder="you@email.com")
+            pw=st.text_input("Password",type="password",key="lp")
+            if st.button("Log In",type="primary",use_container_width=True,key="lb"):
                 if not email or not pw:st.error("Enter email and password.")
                 else:
                     user=_db_get_user(email)
                     if user and user['password_hash']==hash_pw(pw):
                         st.session_state.logged_in=True;st.session_state.user_email=email
-                        # Restore saved profile
-                        saved=_db_load_profile(email)
-                        if saved:st.session_state.profile=saved;st.session_state.pc=True
+                        saved=_db_load_profiles(email)
+                        if saved:
+                            st.session_state.profiles={}
+                            for name,data in saved.items():
+                                p=TaxpayerProfile()
+                                for k,v in data.items():
+                                    if hasattr(p,k):setattr(p,k,v)
+                                st.session_state.profiles[name]=p
+                            if st.session_state.profiles:
+                                st.session_state.active_profile=list(st.session_state.profiles.keys())[0]
+                                st.session_state.pc=True
                         st.rerun()
                     else:st.error("Invalid email or password.")
         with tab2:
-            ne=st.text_input("Email",key="signup_email")
-            np=st.text_input("Password (6+ characters)",type="password",key="signup_pw")
-            np2=st.text_input("Confirm Password",type="password",key="signup_pw2")
-            if st.button("Sign Up",use_container_width=True):
+            ne=st.text_input("Email",key="se",placeholder="you@email.com")
+            np=st.text_input("Password (6+ characters)",type="password",key="sp")
+            np2=st.text_input("Confirm Password",type="password",key="sp2")
+            if st.button("Create Account",use_container_width=True,key="sb"):
                 if not ne or not np:st.error("Fill all fields.")
                 elif np!=np2:st.error("Passwords don't match.")
-                elif len(np)<6:st.error("Password must be 6+ characters.")
+                elif len(np)<6:st.error("Min 6 characters.")
                 elif _db_get_user(ne):st.error("Email already registered.")
                 elif _db_create_user(ne,hash_pw(np)):
                     st.session_state.logged_in=True;st.session_state.user_email=ne;st.rerun()
-                else:st.error("Signup failed. Try again.")
-    
+                else:st.error("Signup failed.")
+
     st.markdown("---")
-    if st.button("Continue without login" if has_db else "Enter TaxGuru →",type="primary" if not has_db else "secondary",use_container_width=True):
+    if st.button("Continue as guest" if has_db else "Enter TaxGuru →",
+        type="primary" if not has_db else "secondary",use_container_width=True,key="gb"):
         st.session_state.logged_in=True;st.session_state.user_email=None;st.rerun()
+
+    st.markdown("""<div class="login-features">
+    <div class="login-feat"><b>⚖️ Tax Calculator</b>Old vs New regime</div>
+    <div class="login-feat"><b>💡 Savings Finder</b>Personalized tips</div>
+    <div class="login-feat"><b>🔀 19 Scenarios</b>What-if analysis</div>
+    <div class="login-feat"><b>🔒 Privacy-First</b>No PAN/Aadhaar stored</div>
+    </div>""",unsafe_allow_html=True)
     st.markdown('</div>',unsafe_allow_html=True)
     return False
-
-def _save_profile():
-    """Save current profile to Supabase for logged-in users"""
-    email=st.session_state.get('user_email')
-    if email:
-        profile_dict={k:v for k,v in vars(st.session_state.profile).items() if not k.startswith('_')}
-        _db_save_profile(email,profile_dict)
-
-# Navigation
-def nav(p):
-    st.session_state.pg=p
-    st.session_state.nav_radio=p
-
-if 'pg' not in st.session_state:st.session_state.pg='Home'
 
 # ══════ CSS ══════
 st.markdown("""<style>
@@ -158,13 +166,23 @@ div[data-testid="stHorizontalBlock"]:first-child .stRadio div[role="radiogroup"]
 .tt h4{color:#D4A843!important;margin:0 0 0.4rem;font-size:1.15rem;}.tt ul{list-style:none;padding:0;margin:0;}.tt li{padding:0.15rem 0;font-size:1rem;color:#F1F5F9;line-height:1.5;}.tt li::before{content:'✓ ';color:#10B981;font-weight:700;}
 .su{background:#1C1917;border:2px solid #D4A843;border-radius:10px;padding:0.7rem 1rem;margin:0.6rem 0 0.8rem;text-align:center;}.su b{font-size:1.2rem;color:#FDE68A;}.su span{color:#E2E8F0;font-size:1rem;}
 .fb{background:#111827;border:1px solid #374151;border-radius:10px;padding:0.8rem;margin-bottom:0.3rem;}.fb h4{color:#D4A843;margin:0 0 0.2rem;font-size:1.05rem;}.fb p{color:#CBD5E1;font-size:0.92rem;margin:0;line-height:1.4;}
+.logo-panel{background:#FFFFFF;border:1px solid #D4A843;border-radius:10px;padding:0.5rem;text-align:center;margin-bottom:0.3rem;}
+.logo-panel img{height:180px;}
 .ch{background:#1E293B;border:1px solid #475569;padding:0.5rem 0.8rem;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:0.5rem;}
 .ch .dot{width:8px;height:8px;background:#4ADE80;border-radius:50%;animation:p 2s infinite;}@keyframes p{0%,100%{opacity:1}50%{opacity:0.4}}
 .ch .nm{font-weight:700;font-size:1rem;color:#F1F5F9;}.ch .rl{font-size:0.85rem;color:#CBD5E1;}
 .cd2{font-size:0.85rem;color:#CBD5E1;font-style:italic;margin-top:0.3rem;}
 .pv{background:#172554;border:1px solid #1E40AF;border-radius:6px;padding:0.4rem 0.7rem;font-size:0.9rem;color:#93C5FD;margin-bottom:0.5rem;}
-.logo-panel{background:#FFFFFF;border:1px solid #D4A843;border-radius:10px;padding:0.5rem;text-align:center;margin-bottom:0.3rem;}
-.logo-panel img{height:180px;}
+/* Comparison table */
+.cmp-tbl{width:100%;border-collapse:collapse;margin:0.5rem 0;}
+.cmp-tbl th{background:#1E293B;color:#D4A843;padding:0.5rem;text-align:right;border:1px solid #374151;font-size:0.95rem;}
+.cmp-tbl th:first-child{text-align:left;}
+.cmp-tbl td{padding:0.4rem 0.5rem;border:1px solid #374151;color:#E2E8F0;text-align:right;font-size:0.95rem;}
+.cmp-tbl td:first-child{text-align:left;color:#CBD5E1;}
+.cmp-tbl tr.total{background:#1A1F2E;font-weight:700;}
+.cmp-tbl tr.total td{color:#D4A843;font-size:1.05rem;}
+.cmp-tbl .winner{color:#4ADE80!important;font-weight:700;}
+/* Inputs */
 [data-testid="stSelectbox"]>div>div{background:#1E293B!important;color:#F1F5F9!important;border-color:#475569!important;}
 [data-testid="stNumberInput"] input{background:#1E293B!important;color:#F1F5F9!important;border-color:#475569!important;}
 [data-testid="stFileUploader"]{background:#111827;border:1px solid #374151;border-radius:8px;padding:0.5rem;}
@@ -183,28 +201,37 @@ div[data-testid="stHorizontalBlock"]:first-child .stRadio div[role="radiogroup"]
 @media(max-width:900px){.tg{grid-template-columns:1fr;}}
 </style>""",unsafe_allow_html=True)
 
-# ══════ Login gate ══════
+# ══════ LOGIN GATE ══════
 if not check_login():st.stop()
 
-# ══════ Session ══════
-for k,v in {'profile':TaxpayerProfile(),'pc':False,'ch':[]}.items():
-    if k not in st.session_state:st.session_state[k]=v
+# ══════ SESSION ══════
+if 'profiles' not in st.session_state:st.session_state.profiles={'Default':TaxpayerProfile()}
+if 'active_profile' not in st.session_state:st.session_state.active_profile='Default'
+if 'pc' not in st.session_state:st.session_state.pc=False
+if 'ch' not in st.session_state:st.session_state.ch=[]
 if 'vdb' not in st.session_state:
     st.session_state.vdb=TaxVectorDB();st.session_state.vdb.index_knowledge_base(TAX_KNOWLEDGE_BASE)
 K=st.secrets.get("GEMINI_API_KEY",os.environ.get("GEMINI_API_KEY",""))
-def P():return st.session_state.profile
-def IC():return st.session_state.pc
-SHORT="""You are {agent_name}, Indian tax advisor on TaxGuru. Be CONCISE: 3-4 sentences max. No intro. No disclaimer. Cite section numbers. Expand only if asked."""
+def P():return st.session_state.profiles.get(st.session_state.active_profile,TaxpayerProfile())
+def IC():return st.session_state.pc and st.session_state.active_profile in st.session_state.profiles
+SHORT="""You are {agent_name}, Indian tax advisor. Be CONCISE: 3-4 sentences max. No intro. No disclaimer. Cite sections."""
 
-# ══════ Nav — NO index param, let session state key control ══════
-TABS=["Home","Tax Profile","Tax Calculator","Savings Finder","What-If Scenarios","Law Updates","About"]
+# ══════ NAV with Profiles + Logout ══════
+TABS=["Home","Tax Profile","Tax Calculator","Savings Finder","What-If Scenarios","Profiles","Law Updates","About"]
 if 'nav_radio' not in st.session_state:st.session_state.nav_radio="Home"
-sel=st.radio("",TABS,horizontal=True,label_visibility="collapsed",key="nav_radio")
+
+nc1,nc2=st.columns([10,1])
+with nc1:sel=st.radio("",TABS,horizontal=True,label_visibility="collapsed",key="nav_radio")
+with nc2:
+    if st.button("🚪",help="Log out",key="logout_btn"):
+        for k in list(st.session_state.keys()):del st.session_state[k]
+        st.rerun()
 st.session_state.pg=sel
 
-# ══════ Regime selector (used on 3 pages) ══════
-def regime_pick(key="rp"):
-    return st.radio("Regime:",["New Regime","Old Regime"],horizontal=True,key=key,label_visibility="collapsed")
+# Active profile indicator on tool pages
+if sel in ("Tax Calculator","Savings Finder","What-If Scenarios") and IC():
+    ap=st.session_state.active_profile
+    st.markdown(f"📋 Active profile: **{ap}** | Tax: **{format_lakhs(compare_regimes(P())[compare_regimes(P())['recommended']+'_regime']['total_tax'])}**")
 
 # ══════ Chat ══════
 def chat_with_logo(k=""):
@@ -223,7 +250,7 @@ def chat_with_logo(k=""):
             pf=extract_financial_only(vars(P())) if IC() else {};rg=build_rag_query(cl,pf)
             rsp=call_gemini(prompt=cl,context=rg['context'],language=lang[1],api_key=K,agent_name=A,system_prompt=SHORT)
         st.session_state.ch.append({'role':'assistant','content':rsp});st.rerun()
-    st.markdown(f'<div class="cd2">💡 {A} is grounded in the Income Tax Act and latest circulars.</div>',unsafe_allow_html=True)
+    st.markdown(f'<div class="cd2">💡 {A} is grounded in the IT Act and latest circulars.</div>',unsafe_allow_html=True)
 
 def with_chat(fn,k=""):
     c1,c2=st.columns([3,1])
@@ -234,8 +261,8 @@ def with_chat(fn,k=""):
 if sel=="Home":
     c1,c2=st.columns([3,1])
     with c1:
-        st.markdown('<h1 style="font-size:1.7rem!important;margin:0 0 0.2rem!important">Stop overpaying your taxes.</h1><p style="font-size:1.05rem;color:#E2E8F0;margin:0 0 0.5rem">AI that knows Indian tax law — pick the right regime, find every deduction, plan ahead.</p>',unsafe_allow_html=True)
-        st.markdown('<div class="su"><b>Set up your tax profile (one-time, 2 minutes)</b><br><span>Upload a document or enter your details manually.</span></div>',unsafe_allow_html=True)
+        st.markdown('<h1 style="font-size:1.7rem!important;margin:0 0 0.2rem!important">Stop overpaying your taxes.</h1><p style="font-size:1.05rem;color:#E2E8F0">AI that knows Indian tax law — pick the right regime, find every deduction, plan ahead.</p>',unsafe_allow_html=True)
+        st.markdown('<div class="su"><b>Set up your tax profile (one-time, 2 minutes)</b><br><span>Upload a document or enter your details.</span></div>',unsafe_allow_html=True)
         bc1,bc2=st.columns(2)
         with bc1:st.button("📄 Upload Payslip / Form 16",use_container_width=True,type="primary",on_click=nav,args=("Tax Profile",))
         with bc2:st.button("✏️ Enter Manually",use_container_width=True,on_click=nav,args=("Tax Profile",))
@@ -249,13 +276,16 @@ if sel=="Home":
         with fc3:
             st.markdown('<div class="fb"><h4>💡 Savings Finder</h4><p>What to invest, how much, by when.</p></div>',unsafe_allow_html=True)
             st.button("Open Savings Finder →",use_container_width=True,key="h3",on_click=nav,args=("Savings Finder",))
-        st.markdown(f'<div class="tg"><div class="tt"><h4>🛡️ Always Accurate</h4><ul><li>Tax numbers from a precise engine — not AI guesses</li><li>Cites actual Income Tax Act sections</li><li>{A} says "check with a CA" when unsure — never guesses</li><li>Real-time: Budget 2026, circulars, court judgements</li></ul></div><div class="tt"><h4>🔒 Your Data Stays Private</h4><ul><li>No PAN, Aadhaar, address, DOB, phone, email collected</li><li>Bank, PF/UAN, employer — auto-deleted</li><li>Session-only. Close browser → gone. Forever.</li><li>Login saves profile securely — nothing else.</li></ul></div></div>',unsafe_allow_html=True)
+        st.markdown(f'<div class="tg"><div class="tt"><h4>🛡️ Always Accurate</h4><ul><li>Tax numbers from a precise engine — not AI guesses</li><li>Cites actual Income Tax Act sections</li><li>{A} says "check with a CA" when unsure</li><li>Real-time: Budget 2026, circulars, court judgements</li></ul></div><div class="tt"><h4>🔒 Your Data Stays Private</h4><ul><li>No PAN, Aadhaar, address, DOB, phone, email collected</li><li>Bank, PF/UAN, employer — auto-deleted</li><li>Session-only. Close browser → gone.</li><li>Login saves profile securely — nothing else.</li></ul></div></div>',unsafe_allow_html=True)
     with c2:chat_with_logo("home")
 
 # ══════ TAX PROFILE ══════
 elif sel=="Tax Profile":
     def tp():
         st.markdown("## Tax Profile")
+        # Show if editing existing
+        if IC():
+            st.info(f"⚠️ You are editing profile **{st.session_state.active_profile}**. Any changes will update this profile when you click Save.")
         st.markdown("#### 📄 Upload Document")
         st.markdown('<div class="pv">🔒 Only financial numbers extracted.</div>',unsafe_allow_html=True)
         up=st.file_uploader("Payslip, Form 16, or tax sheet",type=['png','jpg','jpeg','pdf'],key="pfu")
@@ -275,9 +305,9 @@ elif sel=="Tax Profile":
                 def _use():
                     p=P();p.taxpayer_type="salaried";p.gross_salary=gv('gross_salary');p.basic_salary=gv('basic_salary',p.gross_salary*0.4)
                     p.hra_received=gv('hra');p.tds_deducted=gv('tds_deducted');p.section_80c=min(gv('section_80c_total',gv('pf_employee')),150000)
-                    p.section_80ccd_2=gv('section_80ccd_2',gv('pf_employer'));st.session_state.pc=True;_save_profile();nav("Tax Calculator")
+                    p.section_80ccd_2=gv('section_80ccd_2',gv('pf_employer'));st.session_state.pc=True;save_all_profiles();nav("Tax Calculator")
                 st.button("✅ Use This Data",type="primary",use_container_width=True,on_click=_use)
-        elif up:st.error("API key not set.")
+        elif up:st.error("API key not configured.")
         st.markdown("---")
         st.markdown("#### ✏️ Manual Entry")
         c1,c2=st.columns(2)
@@ -288,8 +318,8 @@ elif sel=="Tax Profile":
             st.markdown("**Residency**")
             cit=st.selectbox("Citizenship",["Indian citizen","Person of Indian origin","Foreign citizen"])
             di=st.number_input("Days in India this FY",0,366,365)
-            d4=st.number_input("Days in India, last 4 years",0,1461,1400)
-            i15=st.checkbox("Indian income > ₹15 lakh")
+            d4=st.number_input("Days in India, last 4 yrs",0,1461,1400)
+            i15=st.checkbox("Indian income > ₹15L")
             if di>=182:rs="resident";st.markdown("✅ **Resident**")
             elif cit!="Foreign citizen":
                 if i15 and di>=120 and d4>=365:rs="rnor";st.markdown("⚠️ **RNOR**")
@@ -312,9 +342,9 @@ elif sel=="Tax Profile":
             with c1:rent=st.number_input("Rent ₹/yr",0,value=0,step=10000,format="%d")
             with c2:enps=st.number_input("Employer NPS ₹/yr",0,value=0,step=5000,format="%d")
         if any(x in types for x in ["Business","Professional services","Freelancing"]):
-            biz=st.number_input("Business/Professional Income ₹",0,value=0,step=100000,format="%d")
+            biz=st.number_input("Business/Prof Income ₹",0,value=0,step=100000,format="%d")
         if "Trading (stocks, F&O, crypto)" in types:
-            trd=st.number_input("Trading Profit/(Loss) ₹",value=0,step=50000,format="%d")
+            trd=st.number_input("Trading P/(L) ₹",value=0,step=50000,format="%d")
         with st.expander("📈 Investments, capital gains, ESOPs"):
             c1,c2,c3=st.columns(3)
             with c1:ii2=st.number_input("Interest",0,value=0,step=5000,format="%d")
@@ -343,49 +373,59 @@ elif sel=="Tax Profile":
             p.interest_income=ii2;p.rental_income=ri2;p.dividend_income=dv;p.stcg_equity=stcg;p.ltcg_equity=ltcg
             p.esop_perquisite=esop;p.foreign_esop=fe;p.section_80c=s80c;p.section_80d_self=s80d
             p.section_80d_parents=0;p.section_80ccd_1b=s80n;p.section_80e=s80e;p.section_24b=s24b
-            p.tds_deducted=tds;p.advance_tax_paid=adv;st.session_state.pc=True;_save_profile();nav("Tax Calculator")
+            p.tds_deducted=tds;p.advance_tax_paid=adv;st.session_state.pc=True;save_all_profiles();nav("Tax Calculator")
         st.button("✅ Save & See My Tax",type="primary",use_container_width=True,on_click=_save)
     with_chat(tp,"tp")
 
-# ══════ TAX CALCULATOR — detailed breakdown ══════
+# ══════ TAX CALCULATOR — side-by-side table ══════
 elif sel=="Tax Calculator":
     def calc():
-        st.markdown("## Tax Calculator")
+        st.markdown("## Tax Calculator — Old vs New Regime")
         if not IC():st.warning("Set up tax profile first.");st.button("→ Tax Profile",type="primary",on_click=nav,args=("Tax Profile",));return
         p=P();r=compare_regimes(p);o=r['old_regime'];n=r['new_regime'];rc=r['recommended'];sv=r['savings']
-        regime=regime_pick("rp_calc")
-        rk='new' if regime=="New Regime" else 'old'
         st.success(f"🎯 **{'New' if rc=='new' else 'Old'} Regime saves you {format_currency(sv)}**")
-        d=r[rk+'_regime']
-        # Detailed breakdown
-        st.markdown(f"### {regime} — Detailed Breakdown")
-        st.markdown(f"**Gross salary income:** {format_currency(d['salary_income'])}")
-        if d.get('hp_income',0):st.markdown(f"**House property income:** {format_currency(d['hp_income'])}")
-        if d.get('business_income',0):st.markdown(f"**Business income:** {format_currency(d['business_income'])}")
-        if d.get('other_income',0):st.markdown(f"**Other income:** {format_currency(d['other_income'])}")
-        if d.get('esop_perquisite',0):st.markdown(f"**ESOP perquisite:** {format_currency(d['esop_perquisite'])}")
-        st.markdown(f"**Gross total income:** {format_currency(d['gross_total_income'])}")
-        if rk=='old' and d.get('hra_exemption',0)>0:st.markdown(f"*Less HRA exemption:* -{format_currency(d['hra_exemption'])}")
-        if d['total_deductions']>0:
-            st.markdown(f"*Less Chapter VI-A deductions:* -{format_currency(d['total_deductions'])}")
-            for s,a in d['deduction_breakdown'].items():
-                if a>0:st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;{s}: {format_currency(a)}")
-        st.markdown(f"**Taxable income:** {format_currency(d['taxable_income'])}")
-        st.markdown("---")
-        st.markdown(f"Tax on slab: {format_currency(d['slab_tax'])}")
-        if d.get('stcg_equity_tax',0):st.markdown(f"STCG tax (20%): {format_currency(d['stcg_equity_tax'])}")
-        if d.get('ltcg_equity_tax',0):st.markdown(f"LTCG tax (12.5%): {format_currency(d['ltcg_equity_tax'])}")
-        if d['rebate_87a']>0:st.markdown(f"87A rebate: -{format_currency(d['rebate_87a'])}")
-        if d['surcharge']>0:st.markdown(f"Surcharge: {format_currency(d['surcharge'])}")
-        st.markdown(f"Cess (4%): {format_currency(d['cess'])}")
-        st.markdown(f"### Total tax: {format_currency(d['total_tax'])} (effective {d['effective_rate']}%)")
-        if d['tds_deducted']>0 or d['advance_tax_paid']>0:
-            st.markdown(f"TDS paid: {format_currency(d['tds_deducted'])} | Advance tax: {format_currency(d['advance_tax_paid'])}")
-            np2=d['net_payable']
-            if np2<0:st.markdown(f"**💰 Refund due: {format_currency(abs(np2))}**")
-            else:st.markdown(f"**Net payable: {format_currency(np2)}**")
-        st.markdown("---")
-        st.button("💡 Find ways to save more tax →",on_click=nav,args=("Savings Finder",))
+        # Build comparison table rows
+        rows=[]
+        rows.append(("**Gross Salary**",n['salary_income'],o['salary_income']))
+        if n.get('hp_income') or o.get('hp_income'):rows.append(("House Property",n.get('hp_income',0),o.get('hp_income',0)))
+        if n.get('business_income') or o.get('business_income'):rows.append(("Business Income",n.get('business_income',0),o.get('business_income',0)))
+        if n.get('other_income') or o.get('other_income'):rows.append(("Other Income",n.get('other_income',0),o.get('other_income',0)))
+        if n.get('esop_perquisite') or o.get('esop_perquisite'):rows.append(("ESOP Perquisite",n.get('esop_perquisite',0),o.get('esop_perquisite',0)))
+        rows.append(("**Gross Total Income**",n['gross_total_income'],o['gross_total_income']))
+        if o.get('hra_exemption',0)>0:rows.append(("*Less: HRA Exemption*",0,-o['hra_exemption']))
+        rows.append(("*Less: Standard Deduction*",-75000,-50000))
+        if o['total_deductions']>0:
+            for s,a in o['deduction_breakdown'].items():
+                if a>0:rows.append((f"*Less: {s}*",0,-a))
+        if n.get('section_80ccd_2',0) or (n['total_deductions']>0 and 'Section 80CCD(2)' in n.get('deduction_breakdown',{})):
+            pass  # Already captured above
+        rows.append(("**Taxable Income**",n['taxable_income'],o['taxable_income']))
+        rows.append(("Tax on Slabs",n['slab_tax'],o['slab_tax']))
+        if n.get('stcg_equity_tax') or o.get('stcg_equity_tax'):rows.append(("STCG Tax (20%)",n.get('stcg_equity_tax',0),o.get('stcg_equity_tax',0)))
+        if n.get('ltcg_equity_tax') or o.get('ltcg_equity_tax'):rows.append(("LTCG Tax (12.5%)",n.get('ltcg_equity_tax',0),o.get('ltcg_equity_tax',0)))
+        if n['rebate_87a']>0 or o['rebate_87a']>0:rows.append(("*87A Rebate*",-n['rebate_87a'],-o['rebate_87a']))
+        if n['surcharge']>0 or o['surcharge']>0:rows.append(("Surcharge",n['surcharge'],o['surcharge']))
+        rows.append(("Cess (4%)",n['cess'],o['cess']))
+        rows.append(("**TOTAL TAX**",n['total_tax'],o['total_tax']))
+        if n['tds_deducted']>0 or o['tds_deducted']>0:
+            rows.append(("*Less: TDS*",-n['tds_deducted'],-o['tds_deducted']))
+            rows.append(("*Less: Advance Tax*",-n['advance_tax_paid'],-o['advance_tax_paid']))
+            rows.append(("**Net Payable/Refund**",n['net_payable'],o['net_payable']))
+        # Render HTML table
+        nw='winner' if rc=='new' else '';ow='winner' if rc=='old' else ''
+        html=f'<table class="cmp-tbl"><tr><th>Description</th><th class="{nw}">New Regime {"✅" if rc=="new" else ""}</th><th class="{ow}">Old Regime {"✅" if rc=="old" else ""}</th></tr>'
+        for desc,nv,ov in rows:
+            is_total='total' if desc.startswith("**TOTAL") or desc.startswith("**Net") else ''
+            d=desc.replace("**","").replace("*","")
+            nf=format_currency(abs(nv)) if nv!=0 else "—"
+            of=format_currency(abs(ov)) if ov!=0 else "—"
+            if nv<0:nf=f"-{format_currency(abs(nv))}"
+            if ov<0:of=f"-{format_currency(abs(ov))}"
+            if nv==0 and ov==0:continue
+            html+=f'<tr class="{is_total}"><td>{d}</td><td>{nf}</td><td>{of}</td></tr>'
+        html+='</table>'
+        st.markdown(html,unsafe_allow_html=True)
+        st.button("💡 Find ways to save more →",on_click=nav,args=("Savings Finder",))
     with_chat(calc,"calc")
 
 # ══════ SAVINGS FINDER ══════
@@ -393,108 +433,113 @@ elif sel=="Savings Finder":
     def sf():
         st.markdown("## Savings Finder")
         if not IC():st.warning("Set up tax profile first.");st.button("→ Tax Profile",type="primary",on_click=nav,args=("Tax Profile",));return
-        p=P();r=compare_regimes(p)
-        regime=regime_pick("rp_sf");rk='new' if regime=="New Regime" else 'old'
-        ct=r[rk+'_regime']['total_tax']
+        p=P();r=compare_regimes(p);rc=r['recommended'];ct=r[rc+'_regime']['total_tax']
+        regime=st.radio("Regime:",["New Regime","Old Regime"],horizontal=True,key="rp_sf")
+        rk='new' if regime=="New Regime" else 'old';ct=r[rk+'_regime']['total_tax']
         recs=[]
         if rk=='old' and p.section_80c<150000:
-            g=150000-p.section_80c;p2=copy.deepcopy(p);p2.section_80c=150000;r2=compare_regimes(p2)
-            sv=ct-r2['old_regime']['total_tax']
-            recs.append(('red','80C',f'Invest ₹{g:,.0f} more (80C)',f'Save **{format_currency(max(sv,0))}**','ELSS/PPF/FD','Recommend top 3 ELSS tax-saving mutual funds in India for 2025. Name, 3yr return, lock-in. No disclaimers. 3 lines max.'))
-        if p.section_80ccd_2==0:recs.append(('red','80CCD(2)','Employer NPS','Save ₹15K-50K+','Both regimes','Recommend top 3 NPS tier-1 fund managers in India. Name, 5yr return. 3 lines max.'))
+            g=150000-p.section_80c;p2=copy.deepcopy(p);p2.section_80c=150000;r2=compare_regimes(p2);sv=ct-r2['old_regime']['total_tax']
+            recs.append(('red','80C',f'Invest ₹{g:,.0f} more (80C)',f'Save **{format_currency(max(sv,0))}**','ELSS/PPF/FD','Recommend top 3 ELSS funds India 2025. Name, 3yr return, lock-in. 3 lines.'))
+        if p.section_80ccd_2==0:recs.append(('red','80CCD(2)','Employer NPS','₹15K-50K+','Both regimes','Top 3 NPS tier-1 fund managers India. Name, 5yr return. 3 lines.'))
         if p.esop_perquisite>0:recs.append(('amber','17(2)(vi)',f'ESOP: ₹{p.esop_perquisite:,.0f}','Slab rate','Time exercise',None))
         if p.foreign_esop:recs.append(('red','Sched FA','Foreign ESOP','₹10L penalty','File Form 67',None))
-        if p.trading_income!=0:recs.append(('red','43(5)','Trading → ITR-3','Carry-forward losses','File correctly',None))
+        if p.trading_income!=0:recs.append(('red','43(5)','Trading → ITR-3','Carry-forward','File correctly',None))
         if rk=='old' and p.section_80d_self==0:
             p2=copy.deepcopy(p);p2.section_80d_self=25000;r2=compare_regimes(p2);sv=ct-r2['old_regime']['total_tax']
-            recs.append(('amber','80D','Health insurance',f'Save **{format_currency(max(sv,0))}**','₹25K+₹50K parents','Recommend top 3 health insurance plans in India for tax saving under 80D, 2025. Name, premium range, coverage. 3 lines max.'))
-        if rk=='old' and p.section_24b==0:recs.append(('amber','24(b)','Home loan interest','Up to ₹62,400','Max ₹2L','Recommend top 3 home loan providers in India 2025 with best interest rates. Name, rate. 3 lines max.'))
+            recs.append(('amber','80D','Health insurance',f'Save **{format_currency(max(sv,0))}**','₹25K+₹50K parents','Top 3 health insurance India for 80D. Name, premium, coverage. 3 lines.'))
+        if rk=='old' and p.section_24b==0:recs.append(('amber','24(b)','Home loan','Up to ₹62,400','Max ₹2L','Top 3 home loans India 2025. Name, rate. 3 lines.'))
         if not recs:st.success("🎉 Well optimized!")
         for col,sec,t,impact,detail,q in recs:
             ic={'red':'🔴','amber':'🟡'}.get(col,'🟢')
             st.markdown(f'<div class="cd {col}"><b>{ic} {t}</b> ({sec}) — {impact}<br><em>{detail}</em></div>',unsafe_allow_html=True)
-            if q:
-                if st.button(f"🔍 Explore options",key=f"s_{sec}"):
-                    if K:
-                        with st.spinner(f"{A} is searching..."):
-                            rsp=call_gemini(prompt=q,context="",language="en",api_key=K,agent_name=A,system_prompt=SHORT)
-                        st.markdown(rsp)
+            if q and st.button(f"🔍 Explore options",key=f"s_{sec}"):
+                if K:
+                    with st.spinner(f"{A} is searching..."):rsp=call_gemini(prompt=q,context="",language="en",api_key=K,agent_name=A,system_prompt=SHORT)
+                    st.markdown(rsp)
     with_chat(sf,"sf")
 
-# ══════ WHAT-IF SCENARIOS — multiselect from 19 ══════
+# ══════ WHAT-IF SCENARIOS ══════
 elif sel=="What-If Scenarios":
     def sc():
         st.markdown("## What-If Scenarios")
-        st.markdown("**Select one or more life events to see the tax impact:**")
+        st.markdown("**Select life events to see tax impact:**")
         if not IC():st.warning("Set up tax profile first.");st.button("→ Tax Profile",type="primary",on_click=nav,args=("Tax Profile",));return
         p=P();cur=compare_regimes(p)
-        regime=regime_pick("rp_sc");rk='new' if regime=="New Regime" else 'old'
-        ct=cur[rk+'_regime']['total_tax']
-        st.caption(f"Current tax ({regime}): **{format_currency(ct)}**")
-        ALL_SC=["Salary raise","Invest in 80C (ELSS/PPF)","Start employer NPS","Buy health insurance (80D)",
-            "Take a home loan","Pay rent (HRA)","Sell equity (LTCG)","Sell equity (STCG)","Sell property",
-            "Receive ESOPs","Take education loan","Start a side business","Earn rental income",
-            "Receive a bonus","Make a donation (80G)","Invest in NPS self (80CCD1B)","Earn FD interest"]
-        chosen=st.multiselect("Choose scenarios (select multiple):",ALL_SC,default=[],placeholder="Click to see options...")
-        def calc_tax(p2):r2=compare_regimes(p2);return r2[rk+'_regime']['total_tax']
+        regime=st.radio("Regime:",["New Regime","Old Regime"],horizontal=True,key="rp_sc")
+        rk='new' if regime=="New Regime" else 'old';ct=cur[rk+'_regime']['total_tax']
+        ALL=["Salary raise","Invest in 80C","Employer NPS","Health insurance (80D)","Home loan","Pay rent (HRA)",
+            "Sell equity (LTCG)","Sell equity (STCG)","Sell property","ESOPs","Education loan","Side business",
+            "Rental income","Bonus","Donation (80G)","NPS self (80CCD1B)","FD interest"]
+        chosen=st.multiselect("Choose (select multiple):",ALL,placeholder="Click to see 17 scenarios...")
+        def ct2(p2):r2=compare_regimes(p2);return r2[rk+'_regime']['total_tax']
         for s in chosen:
-            st.markdown(f"---\n#### {s}")
-            p2=copy.deepcopy(p)
-            if s=="Salary raise":
-                pct=st.slider("Raise %",5,100,20,5,key=f"wr_{s}");p2.gross_salary=int(p.gross_salary*(1+pct/100));p2.basic_salary=int(p.basic_salary*(1+pct/100))
-                c1,c2=st.columns(2)
-                with c1:st.metric("New salary",format_lakhs(p2.gross_salary))
-                with c2:st.metric("Tax change",format_currency(calc_tax(p2)-ct))
-            elif s=="Invest in 80C (ELSS/PPF)":
-                ex=st.slider("80C amount ₹",0,150000,50000,10000,key=f"wr_{s}");p2.section_80c=min(p.section_80c+ex,150000)
-                st.metric("Tax saving",format_currency(ct-calc_tax(p2)))
-            elif s=="Start employer NPS":
-                nps=st.slider("NPS ₹/yr",0,int(max(p.basic_salary*0.14,100000)),50000,5000,key=f"wr_{s}");p2.section_80ccd_2=nps
-                st.metric("Tax saving (both regimes)",format_currency(ct-calc_tax(p2)))
-            elif s=="Buy health insurance (80D)":
-                d2=st.slider("Premium ₹/yr",0,50000,25000,5000,key=f"wr_{s}");p2.section_80d_self=d2
-                st.metric("Tax saving",format_currency(ct-calc_tax(p2)))
-            elif s=="Take a home loan":
-                li=st.number_input("Interest ₹/yr",0,value=200000,step=25000,key=f"wn_{s}a");lp=st.number_input("Principal ₹/yr",0,value=100000,step=25000,key=f"wn_{s}b")
-                p2.section_24b=min(li,200000);p2.section_80c=min(p.section_80c+lp,150000)
-                st.metric("Tax saving",format_currency(ct-calc_tax(p2)))
-            elif s=="Pay rent (HRA)":
-                rn=st.number_input("Annual rent ₹",0,value=240000,step=12000,key=f"wn_{s}");p2.rent_paid_annual=rn
-                st.metric("Tax saving",format_currency(ct-calc_tax(p2)))
-            elif s=="Sell equity (LTCG)":
-                lg=st.number_input("LTCG ₹",0,value=200000,step=25000,key=f"wn_{s}");p2.ltcg_equity+=lg
-                st.metric("Extra tax",format_currency(calc_tax(p2)-ct))
-            elif s=="Sell equity (STCG)":
-                sg=st.number_input("STCG ₹",0,value=100000,step=25000,key=f"wn_{s}");p2.stcg_equity+=sg
-                st.metric("Extra tax",format_currency(calc_tax(p2)-ct))
-            elif s=="Sell property":
-                gn=st.number_input("Capital gain ₹",0,value=500000,step=50000,key=f"wn_{s}");p2.ltcg_other+=gn
-                st.metric("Extra tax",format_currency(calc_tax(p2)-ct))
-            elif s=="Receive ESOPs":
-                ep=st.number_input("ESOP value ₹",0,value=500000,step=50000,key=f"wn_{s}");p2.esop_perquisite+=ep
-                st.metric("Extra tax",format_currency(calc_tax(p2)-ct))
-            elif s=="Take education loan":
-                ei=st.number_input("Interest ₹/yr",0,value=100000,step=10000,key=f"wn_{s}");p2.section_80e=ei
-                st.metric("Tax saving",format_currency(ct-calc_tax(p2)))
-            elif s=="Start a side business":
-                bi=st.number_input("Business income ₹",0,value=300000,step=50000,key=f"wn_{s}");p2.business_income+=bi
-                st.metric("Extra tax",format_currency(calc_tax(p2)-ct))
-            elif s=="Earn rental income":
-                ri3=st.number_input("Rental income ₹",0,value=240000,step=12000,key=f"wn_{s}");p2.rental_income+=ri3
-                st.metric("Extra tax",format_currency(calc_tax(p2)-ct))
-            elif s=="Receive a bonus":
-                bn=st.number_input("Bonus ₹",0,value=500000,step=50000,key=f"wn_{s}");p2.gross_salary+=bn
-                st.metric("Tax on bonus",format_currency(calc_tax(p2)-ct))
-            elif s=="Make a donation (80G)":
-                dn=st.number_input("Donation ₹",0,value=50000,step=5000,key=f"wn_{s}");p2.section_80g=dn
-                st.metric("Tax saving",format_currency(ct-calc_tax(p2)))
-            elif s=="Invest in NPS self (80CCD1B)":
-                np2=st.slider("NPS ₹",0,50000,50000,5000,key=f"wr_{s}");p2.section_80ccd_1b=np2
-                st.metric("Tax saving",format_currency(ct-calc_tax(p2)))
-            elif s=="Earn FD interest":
-                fd=st.number_input("FD interest ₹/yr",0,value=100000,step=10000,key=f"wn_{s}");p2.interest_income+=fd
-                st.metric("Extra tax",format_currency(calc_tax(p2)-ct))
+            st.markdown(f"---\n#### {s}");p2=copy.deepcopy(p)
+            if s=="Salary raise":pct=st.slider("Raise %",5,100,20,5,key=f"w_{s}");p2.gross_salary=int(p.gross_salary*(1+pct/100));p2.basic_salary=int(p.basic_salary*(1+pct/100));st.metric("Tax change",format_currency(ct2(p2)-ct))
+            elif s=="Invest in 80C":ex=st.slider("₹",0,150000,50000,10000,key=f"w_{s}");p2.section_80c=min(p.section_80c+ex,150000);st.metric("Saving",format_currency(ct-ct2(p2)))
+            elif s=="Employer NPS":nps=st.slider("₹/yr",0,int(max(p.basic_salary*0.14,100000)),50000,5000,key=f"w_{s}");p2.section_80ccd_2=nps;st.metric("Saving (both regimes)",format_currency(ct-ct2(p2)))
+            elif s=="Health insurance (80D)":d2=st.slider("₹/yr",0,50000,25000,5000,key=f"w_{s}");p2.section_80d_self=d2;st.metric("Saving",format_currency(ct-ct2(p2)))
+            elif s=="Home loan":li=st.number_input("Interest ₹/yr",0,200000,200000,25000,key=f"wn_{s}");p2.section_24b=min(li,200000);st.metric("Saving",format_currency(ct-ct2(p2)))
+            elif s=="Pay rent (HRA)":rn=st.number_input("Rent ₹/yr",0,value=240000,step=12000,key=f"wn_{s}");p2.rent_paid_annual=rn;st.metric("Saving",format_currency(ct-ct2(p2)))
+            elif s=="Sell equity (LTCG)":lg=st.number_input("₹",0,value=200000,step=25000,key=f"wn_{s}");p2.ltcg_equity+=lg;st.metric("Extra tax",format_currency(ct2(p2)-ct))
+            elif s=="Sell equity (STCG)":sg=st.number_input("₹",0,value=100000,step=25000,key=f"wn_{s}");p2.stcg_equity+=sg;st.metric("Extra tax",format_currency(ct2(p2)-ct))
+            elif s=="Sell property":gn=st.number_input("Gain ₹",0,value=500000,step=50000,key=f"wn_{s}");p2.ltcg_other+=gn;st.metric("Extra tax",format_currency(ct2(p2)-ct))
+            elif s=="ESOPs":ep=st.number_input("₹",0,value=500000,step=50000,key=f"wn_{s}");p2.esop_perquisite+=ep;st.metric("Extra tax",format_currency(ct2(p2)-ct))
+            elif s=="Education loan":ei=st.number_input("Interest ₹/yr",0,value=100000,step=10000,key=f"wn_{s}");p2.section_80e=ei;st.metric("Saving",format_currency(ct-ct2(p2)))
+            elif s=="Side business":bi=st.number_input("Income ₹",0,value=300000,step=50000,key=f"wn_{s}");p2.business_income+=bi;st.metric("Extra tax",format_currency(ct2(p2)-ct))
+            elif s=="Rental income":ri3=st.number_input("₹/yr",0,value=240000,step=12000,key=f"wn_{s}");p2.rental_income+=ri3;st.metric("Extra tax",format_currency(ct2(p2)-ct))
+            elif s=="Bonus":bn=st.number_input("₹",0,value=500000,step=50000,key=f"wn_{s}");p2.gross_salary+=bn;st.metric("Tax on bonus",format_currency(ct2(p2)-ct))
+            elif s=="Donation (80G)":dn=st.number_input("₹",0,value=50000,step=5000,key=f"wn_{s}");p2.section_80g=dn;st.metric("Saving",format_currency(ct-ct2(p2)))
+            elif s=="NPS self (80CCD1B)":np2=st.slider("₹",0,50000,50000,5000,key=f"w_{s}");p2.section_80ccd_1b=np2;st.metric("Saving",format_currency(ct-ct2(p2)))
+            elif s=="FD interest":fd=st.number_input("₹/yr",0,value=100000,step=10000,key=f"wn_{s}");p2.interest_income+=fd;st.metric("Extra tax",format_currency(ct2(p2)-ct))
     with_chat(sc,"sc")
+
+# ══════ PROFILES PAGE ══════
+elif sel=="Profiles":
+    def pr():
+        st.markdown("## My Profiles")
+        email=st.session_state.get('user_email')
+        if email:st.caption(f"Logged in as **{email}**")
+        else:st.caption("Guest mode — profiles not saved across sessions.")
+
+        for name,prof in st.session_state.profiles.items():
+            is_active=name==st.session_state.active_profile
+            marker="✅ **Active**" if is_active else ""
+            r=compare_regimes(prof);b=r[r['recommended']+'_regime']
+            with st.expander(f"{'📋' if is_active else '📄'} {name} {marker}",expanded=is_active):
+                c1,c2,c3=st.columns(3)
+                with c1:
+                    st.markdown(f"**Type:** {prof.taxpayer_type}")
+                    st.markdown(f"**Age:** {prof.age}")
+                    st.markdown(f"**Residency:** {prof.residency}")
+                    st.markdown(f"**Metro:** {'Yes' if prof.metro_city else 'No'}")
+                with c2:
+                    st.markdown(f"**Gross Salary:** {format_currency(prof.gross_salary)}")
+                    st.markdown(f"**Business:** {format_currency(prof.business_income)}")
+                    st.markdown(f"**HRA:** {format_currency(prof.hra_received)}")
+                    st.markdown(f"**80C:** {format_currency(prof.section_80c)}")
+                with c3:
+                    st.markdown(f"**Tax ({r['recommended'].title()}):** {format_currency(b['total_tax'])}")
+                    st.markdown(f"**Effective Rate:** {b['effective_rate']}%")
+                    st.markdown(f"**Savings:** {format_currency(r['savings'])}")
+                bc1,bc2=st.columns(2)
+                with bc1:
+                    if not is_active:
+                        if st.button(f"Set as active",key=f"act_{name}"):
+                            st.session_state.active_profile=name;st.session_state.pc=True;st.rerun()
+                with bc2:
+                    if st.button(f"✏️ Edit",key=f"edit_{name}"):
+                        st.session_state.active_profile=name;nav("Tax Profile")
+
+        st.markdown("---")
+        st.markdown("#### ➕ Add New Profile")
+        new_name=st.text_input("Profile name",placeholder="e.g., Spouse, Parent",key="new_prof_name")
+        if st.button("Create Profile",type="primary") and new_name:
+            if new_name in st.session_state.profiles:st.error("Name already exists.")
+            else:
+                st.session_state.profiles[new_name]=TaxpayerProfile()
+                st.session_state.active_profile=new_name;st.session_state.pc=False
+                save_all_profiles();nav("Tax Profile")
+    with_chat(pr,"pr")
 
 # ══════ LAW UPDATES ══════
 elif sel=="Law Updates":
@@ -507,15 +552,12 @@ elif sel=="Law Updates":
             ('Feb 2026','Budget 2026','Tax Year replaces PY/AY. No rate changes.','blue'),
             ('Oct 2025','ITR Deadline Extended','Audit: Oct 31 → Dec 10, 2025.','amber'),
             ('Jul 2024','Capital Gains Changed','STCG 15→20%. LTCG 10→12.5%. No indexation.','amber'),
-            ('Feb 2025','₹12.75L Tax-Free','New regime: ₹4L+87A ₹60K+SD ₹75K.','green'),
+            ('Feb 2025','₹12.75L Tax-Free','87A ₹60K + SD ₹75K.','green'),
             ('Apr 2024','Angel Tax Abolished','Sec 56(2)(viib) removed.','green')]:
             ic={'blue':'ℹ️','amber':'⚠️','green':'✅'}[col]
             st.markdown(f'<div class="cd {col}"><b>{ic} [{dt}] {t}</b><br>{d}</div>',unsafe_allow_html=True)
         st.markdown("---\n#### ⚖️ Case Law")
-        for t,d in [("CIT vs Gopal Purohit (Bombay HC)","Separate investment + trading portfolios OK."),
-            ("Unnikrishnan vs ITO","ESOPs granted as resident → taxable in India even if exercised as NRI."),
-            ("HRA to Parents (ITAT)","Rent to parents OK. Need agreement + bank transfer."),
-            ("CBDT Circular 6/2016","Classify shares as investment or trading — must be consistent.")]:
+        for t,d in [("CIT vs Gopal Purohit","Separate investment + trading portfolios OK."),("Unnikrishnan vs ITO","ESOPs granted as resident → taxable even if exercised as NRI."),("HRA to Parents","Rent OK. Need agreement + bank proof."),("Circular 6/2016","Classify shares consistently.")]:
             st.markdown(f'<div class="cd blue"><b>⚖️ {t}</b><br>{d}</div>',unsafe_allow_html=True)
     with_chat(lu,"lu")
 
@@ -523,30 +565,17 @@ elif sel=="Law Updates":
 elif sel=="About":
     def ab():
         st.markdown(f"""## About TaxGuru
-
 ### Our Mission
-India has over 9 crore income tax return filers — yet most don't optimize their taxes. The government issued ₹3.9 lakh crore in refunds in FY25, showing millions overpay through excess TDS and wrong regime choices. With 2 tax regimes and 70+ deduction sections, making the right choice is hard. **TaxGuru exists to change this.**
+India has 9 Cr+ filers — most overpay. ₹3.9L Cr in refunds (FY25). TaxGuru makes the right choice easy.
 
 ### How It Works
-**🧮 Precise Calculation Engine** — Your tax numbers are computed by a deterministic mathematical engine, not generated by AI. The numbers are always exactly right — no rounding, no estimation, no hallucination.
+**🧮 Precise Engine** — Deterministic math, always exact. **🤖 {A}** — 60 tax entries, circulars, case law. Cites sections. **🔍 Real-Time** — Web search for latest. **📄 Doc AI** — Reads payslips. **🔒 Privacy** — No PAN/Aadhaar/DOB/phone. Session-only (or encrypted in Supabase if logged in).
 
-**🤖 {A} — Your Tax Agent** — {A} is an intelligent agent with access to 60 sections of the Income Tax Act, key CBDT circulars, case law precedents, and Budget amendments. When you ask a question, {A} retrieves the most relevant legal provisions and constructs an answer grounded in actual law — citing specific sections.
+### Accuracy
+60 provisions. CBDT Notification 22/2026. Weekly auto-updates.
 
-**🔍 Real-Time Updates** — {A} can search the web for the latest tax developments — new circulars, court rulings, deadline extensions. This means advice stays current even as the law changes. Our knowledge base also auto-updates weekly via automated scripts.
+### For Everyone
+Salaried • Business • Professionals • Traders • Investors • Seniors • NRIs
 
-**📄 Document Intelligence** — Upload a payslip or Form 16 and AI reads it, extracts only the financial numbers (ignoring all personal details), and fills your tax profile automatically.
-
-**🔒 Privacy by Design** — We never collect, store, or transmit your name, PAN, Aadhaar, date of birth, address, phone number, email, bank account details, PF number, employer name, or employee ID. Only financial figures are processed. If you create an account, only your email and encrypted password are stored — your profile data is saved securely but contains no personal identifiers.
-
-### Accuracy Commitment
-- Every answer cites the specific section of the Income Tax Act
-- When {A} is unsure, {A} says "consult a CA" — never guesses
-- 60 provisions including CBDT Notification 22/2026 (March 20, 2026) and IT Rules 2026
-- Tax calculations verified against government guidelines and major tax platforms
-- Updated with Budget 2025, Budget 2026, and all major circulars
-
-### Who It's For
-**Salaried employees** — regime comparison, HRA, payslip analysis • **Business owners** — presumptive taxation, audit requirements • **Professionals** — Section 44ADA, advance tax planning • **Traders** — F&O/intraday, Section 43(5), ITR-3, loss carry-forward • **Investors** — capital gains, ESOP taxation (domestic + foreign) • **Senior citizens** — higher exemptions, 80TTB, TDS thresholds • **NRIs** — residency auto-determination, DTAA, foreign tax credit
-
-*TaxGuru provides informational guidance based on Indian tax law. This is not professional tax advice. For complex matters, always consult a qualified Chartered Accountant.*""")
+*Informational guidance. Not professional tax advice.*""")
     with_chat(ab,"ab")
