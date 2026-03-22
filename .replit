@@ -4,4 +4,4 @@ run = "streamlit run app.py --server.port 5000 --server.address 0.0.0.0 --server
 channel = "stable-24_05"
 
 [deployment]
-run = ["sh", "-c", "streamlit run app.py --server.port 5000 --server.address 0.0.0.0 --server.headless true"]
+run = "streamlit run app.py --server.port 5000 --server.address 0.0.0.0"
