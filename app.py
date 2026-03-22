@@ -219,8 +219,92 @@ with st.sidebar:
 # PAGE: TAX PROFILE
 # ══════════════════════════════════════════
 if page == "🏠 Tax Profile":
-    st.markdown("## Tell us about yourself")
-    st.markdown("We need a few details to personalize your tax advice. No personal identifiers needed — just financial numbers.")
+    st.markdown("## Set Up Your Tax Profile")
+    st.markdown("Upload a document or fill in manually — either way, we'll compute your optimal tax strategy.")
+
+    # ── Upload-First Option ──
+    st.markdown("### 📄 Quick Start: Upload a Document")
+    st.markdown("Upload your **Form 16**, **employer tax statement**, or **monthly payslip** and we'll extract everything automatically.")
+
+    st.markdown("""
+    <div class="privacy-banner">
+        🔒 Your document is processed by AI for number extraction only. Personal identifiers (name, PAN, employee ID) 
+        are never stored. Only financial figures are kept in your session.
+    </div>
+    """, unsafe_allow_html=True)
+
+    uploaded_doc = st.file_uploader(
+        "Drop your Form 16, tax statement, or payslip here",
+        type=['png', 'jpg', 'jpeg', 'pdf'],
+        help="Supported: PDF, PNG, JPG. We extract only financial numbers — no personal data is stored.",
+        key="profile_doc_upload"
+    )
+
+    if uploaded_doc:
+        file_bytes = uploaded_doc.read()
+        mime_type = uploaded_doc.type or "image/jpeg"
+
+        with st.spinner("🔍 Analyzing your document with AI — extracting salary components..."):
+            doc_result = analyze_document(file_bytes, GEMINI_API_KEY, mime_type)
+
+        if 'error' in doc_result:
+            st.error(f"Could not analyze the document: {doc_result['error']}. You can fill in the details manually below.")
+        elif doc_result:
+            is_annual = doc_result.get('period', 'monthly') == 'annual'
+            multiplier = 1 if is_annual else 12
+            period_label = "Annual" if is_annual else "Monthly (will be annualized)"
+
+            st.success(f"✅ Document analyzed! Detected: **{period_label}** data. Review the extracted values below.")
+
+            with st.expander("📊 Extracted Data (click to review)", expanded=True):
+                # Show what was extracted
+                display_fields = {k: v for k, v in doc_result.items()
+                                  if k != 'period' and k != 'raw_text' and k != 'parse_error'
+                                  and v not in [0, "NOT_FOUND", None, ""]}
+                if display_fields:
+                    for k, v in display_fields.items():
+                        label = k.replace('_', ' ').title()
+                        if isinstance(v, (int, float)) and v > 0:
+                            annual_v = v * multiplier
+                            if not is_annual:
+                                st.markdown(f"- **{label}:** ₹{v:,.0f}/month → **₹{annual_v:,.0f}/year**")
+                            else:
+                                st.markdown(f"- **{label}:** **₹{v:,.0f}**")
+                else:
+                    st.warning("Could not extract structured data. Please fill in manually below.")
+
+            # Auto-fill profile from extracted data
+            def get_val(key, default=0):
+                v = doc_result.get(key, default)
+                if v == "NOT_FOUND" or v is None:
+                    return default
+                try:
+                    return float(v) * multiplier
+                except (ValueError, TypeError):
+                    return default
+
+            if st.button("✅ Use Extracted Data for My Profile", type="primary", use_container_width=True):
+                p = st.session_state.profile
+                p.taxpayer_type = "salaried"
+                p.gross_salary = get_val('gross_salary')
+                p.basic_salary = get_val('basic_salary', p.gross_salary * 0.4)
+                p.hra_received = get_val('hra')
+                p.special_allowance = get_val('special_allowance')
+                p.lta = get_val('lta')
+                p.professional_tax = get_val('professional_tax')
+                p.tds_deducted = get_val('tds_deducted')
+                p.section_80c = min(get_val('section_80c_total', get_val('pf_employee')), 150000)
+                p.section_80d_self = get_val('section_80d')
+                p.section_80ccd_1b = get_val('section_80ccd_1b')
+                p.section_80ccd_2 = get_val('section_80ccd_2', get_val('pf_employer'))
+                p.section_24b = get_val('section_24b')
+                st.session_state.profile_complete = True
+                st.success("✅ Profile created from your document! Check the sidebar for your tax summary, or go to Tax Calculator.")
+                st.rerun()
+
+    st.markdown("---")
+    st.markdown("### ✏️ Or Fill In Manually")
+    st.markdown("Enter your details below. Only financial numbers needed — no personal identifiers.")
 
     col1, col2 = st.columns(2)
 
