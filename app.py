@@ -178,9 +178,19 @@ div[data-testid="stHorizontalBlock"]:first-child .stRadio div[role="radiogroup"]
 [data-testid="stChatInput"]{{background:#FFF!important;border:2px solid {BD};border-radius:8px;}}
 [data-testid="stChatInput"] button{{background:{AC}!important;color:#FFF!important;}}
 /* Dropdowns */
-[data-baseweb="popover"],[data-baseweb="menu"],[data-baseweb="select"] [role="listbox"]{{background:{BG2}!important;border:1px solid {BD}!important;}}
-[data-baseweb="menu"] li,[data-baseweb="select"] [role="option"]{{color:{TX}!important;}}
+[data-baseweb="popover"],[data-baseweb="menu"],[data-baseweb="select"] [role="listbox"]{{background:{BG}!important;border:1px solid {BD}!important;}}
+[data-baseweb="menu"] li,[data-baseweb="select"] [role="option"]{{color:{TX}!important;background:{BG}!important;}}
 [data-baseweb="menu"] li:hover,[data-baseweb="select"] [role="option"]:hover{{background:{HL}!important;}}
+[data-baseweb="menu"] li[aria-selected="true"]{{background:{AC}!important;color:#FFF!important;}}
+/* Multiselect tags (chosen items) */
+[data-baseweb="tag"]{{background:{AC}!important;color:#FFF!important;border:none!important;}}
+[data-baseweb="tag"] span{{color:#FFF!important;}}
+[data-baseweb="tag"] [role="presentation"]{{color:#FFF!important;}}
+/* Select box selected value text */
+[data-baseweb="select"] [data-testid="stMarkdownContainer"]{{color:{TX}!important;}}
+[data-baseweb="select"] .css-1dimb5e-singleValue,.css-qrbaxs{{color:{TX}!important;}}
+/* Expander header text in profiles */
+[data-testid="stExpander"] details summary span{{color:{TX}!important;font-weight:600;}}
 @media(max-width:900px){{.tg{{grid-template-columns:1fr;}}.logo-panel img{{height:120px;}}}}
 </style>""",unsafe_allow_html=True)
 
@@ -419,11 +429,20 @@ elif sel=="Profiles":
                 with c1:st.markdown(f"**Type:** {prof.taxpayer_type}\n\n**Age:** {prof.age}\n\n**Residency:** {prof.residency}")
                 with c2:st.markdown(f"**Gross:** {format_currency(prof.gross_salary)}\n\n**Business:** {format_currency(prof.business_income)}\n\n**80C:** {format_currency(prof.section_80c)}")
                 with c3:r=compare_regimes(prof);b=r[r['recommended']+'_regime'];st.markdown(f"**Tax:** {format_currency(b['total_tax'])}\n\n**Rate:** {b['effective_rate']}%\n\n**Best:** {r['recommended'].title()}")
-                bc1,bc2=st.columns(2)
+                bc1,bc2,bc3=st.columns(3)
                 with bc1:
                     if not ia:st.button(f"Set active",key=f"a_{name}",on_click=nav_activate,args=(name,))
                 with bc2:
                     st.button(f"✏️ Edit",key=f"e_{name}",on_click=nav_edit,args=(name,))
+                with bc3:
+                    if name!="Default" and len(st.session_state.profiles)>1:
+                        def _del(n=name):
+                            if n in st.session_state.profiles:
+                                del st.session_state.profiles[n]
+                                if st.session_state.active_profile==n:
+                                    st.session_state.active_profile=list(st.session_state.profiles.keys())[0]
+                                save_all()
+                        st.button(f"🗑️ Delete",key=f"d_{name}",on_click=_del)
         st.markdown("---\n#### ➕ Add Profile")
         nn=st.text_input("Name",placeholder="Spouse, Parent...",key="npn")
         def _add():
