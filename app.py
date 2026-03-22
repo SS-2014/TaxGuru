@@ -103,7 +103,7 @@ if sel=="Home":
     with c1:
         _l=f'<img src="data:image/png;base64,{LOGO}">' if LOGO else ''
         st.markdown(f'<div class="logo-bar">{_l}<span class="brand">TaxGuru</span></div>',unsafe_allow_html=True)
-        st.markdown(f'<div class="hero-text"><h1>Stop overpaying your taxes.</h1><p>AI that knows Indian tax law — pick the right regime, find every deduction, plan ahead.</p><div class="tags"><span class="tg2">Always Accurate</span><span class="tg2">Private</span><span class="tg2">FY 2025-26</span><span class="tg2">Works in Hindi</span></div></div>',unsafe_allow_html=True)
+        st.markdown(f'<div class="hero-text"><h1>Stop overpaying your taxes.</h1><p>AI that knows Indian tax law — pick the right regime, find every deduction, plan ahead.</p><div class="tags"><span class="tg2">Always Accurate</span><span class="tg2">Private</span><span class="tg2">Latest updates</span><span class="tg2">Chat in Indian languages</span></div></div>',unsafe_allow_html=True)
         st.markdown(f'<div class="su"><b>Set up your tax profile (one-time, 2 minutes)</b><br><span>Upload a document or enter details. Create up to 5 profiles.</span></div>',unsafe_allow_html=True)
         bc1,bc2=st.columns(2)
         with bc1:
@@ -120,7 +120,7 @@ if sel=="Home":
         with fc3:
             if st.button("💡 Savings Finder",use_container_width=True,key="h3"):go("Savings Finder");st.rerun()
             if st.button("👥 Multiple Profiles",use_container_width=True,key="h6"):go("Tax Profile");st.rerun()
-        st.markdown(f'<div class="tg"><div class="tt"><h4>🛡️ Always Accurate</h4><ul><li>Tax numbers from a precise engine — not AI guesses</li><li>Every answer cites the actual Income Tax Act section</li><li>When unsure, {A} says "check with a CA" — never makes things up</li><li>Updated real-time with Budget 2026 changes, circulars, court judgements</li></ul></div><div class="tt"><h4>🔒 Your Data Stays Private</h4><ul><li>We never see your PAN, Aadhaar, address, DOB, phone, or email</li><li>Bank accounts, PF/UAN, employer name — all auto-stripped</li><li>Only salary/deduction numbers used — in your browser session only</li><li>Close the browser → everything gone. Nothing saved. Ever.</li></ul></div></div>',unsafe_allow_html=True)
+        st.markdown(f'<div class="tg"><div class="tt"><h4>🛡️ Always Accurate</h4><ul><li>Tax numbers from a precise engine — not AI guesses</li><li>Every answer cites the actual Income Tax Act section</li><li>When unsure, {A} says "check with a CA" — never makes things up</li><li>Updated real-time with Budget 2026 changes, circulars, court judgements</li></ul></div><div class="tt"><h4>🔒 Your Data Stays Private</h4><ul><li>We never see your PAN, Aadhaar, address, DOB, phone, or email</li><li>Bank accounts, PF/UAN, employer name — all auto-deleted</li><li>Only salary/deduction numbers used — in your browser session only</li><li>Close the browser → everything gone. Nothing saved. Ever.</li></ul></div></div>',unsafe_allow_html=True)
     with c2:chat("home")
 elif sel=="Tax Profile":
     def tp():
