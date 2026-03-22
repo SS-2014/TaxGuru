@@ -79,7 +79,7 @@ def check_login():
     .login-wrap{max-width:440px;margin:1.5rem auto;padding:0;}
     .login-card{background:linear-gradient(135deg,#111827,#1E293B);border:1px solid #D4A843;border-radius:16px;padding:2rem;box-shadow:0 8px 32px rgba(0,0,0,0.3);}
     .login-logo{text-align:center;padding:1rem;margin-bottom:1rem;background:#FFFFFF;border-radius:12px;border:1px solid #E5E7EB;}
-    .login-logo img{height:120px;}
+    .login-logo img{height:300px;}
     .login-tagline{text-align:center;color:#D4A843;font-size:1.1rem;margin:0.5rem 0 1rem;font-weight:600;}
     .login-features{display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin:1rem 0;}
     .login-feat{background:#0B0F19;border:1px solid #374151;border-radius:8px;padding:0.5rem;text-align:center;font-size:0.8rem;color:#CBD5E1;}
@@ -102,12 +102,18 @@ def check_login():
                     if user and user['password_hash']==hash_pw(pw):
                         st.session_state.logged_in=True;st.session_state.user_email=email
                         saved=_db_load_profiles(email)
-                        if saved:
+                        if saved and isinstance(saved,dict):
                             st.session_state.profiles={}
                             for name,data in saved.items():
                                 p=TaxpayerProfile()
-                                for k,v in data.items():
-                                    if hasattr(p,k):setattr(p,k,v)
+                                if isinstance(data,str):
+                                    try:data=json.loads(data)
+                                    except:continue
+                                if isinstance(data,dict):
+                                    for k,v in data.items():
+                                        if hasattr(p,k):
+                                            try:setattr(p,k,v)
+                                            except:pass
                                 st.session_state.profiles[name]=p
                             if st.session_state.profiles:
                                 st.session_state.active_profile=list(st.session_state.profiles.keys())[0]
@@ -128,6 +134,13 @@ def check_login():
                 else:st.error("Signup failed.")
 
     st.markdown("---")
+    tc1,tc2=st.columns([3,1])
+    with tc2:
+        if st.button("🌓 Dark/Light",key="login_theme"):
+            if "dark_mode" not in st.session_state:st.session_state.dark_mode=True
+            st.session_state.dark_mode=not st.session_state.dark_mode;st.rerun()
+    with tc1:
+        pass
     if st.button("Continue as guest" if has_db else "Enter TaxGuru →",
         type="primary" if not has_db else "secondary",use_container_width=True,key="gb"):
         st.session_state.logged_in=True;st.session_state.user_email=None;st.rerun()
@@ -167,7 +180,7 @@ div[data-testid="stHorizontalBlock"]:first-child .stRadio div[role="radiogroup"]
 .su{background:#1C1917;border:2px solid #D4A843;border-radius:10px;padding:0.7rem 1rem;margin:0.6rem 0 0.8rem;text-align:center;}.su b{font-size:1.2rem;color:#FDE68A;}.su span{color:#E2E8F0;font-size:1rem;}
 .fb{background:#111827;border:1px solid #374151;border-radius:10px;padding:0.8rem;margin-bottom:0.3rem;}.fb h4{color:#D4A843;margin:0 0 0.2rem;font-size:1.05rem;}.fb p{color:#CBD5E1;font-size:0.92rem;margin:0;line-height:1.4;}
 .logo-panel{background:#FFFFFF;border:1px solid #D4A843;border-radius:10px;padding:0.5rem;text-align:center;margin-bottom:0.3rem;}
-.logo-panel img{height:180px;}
+.logo-panel img{height:280px;}
 .ch{background:#1E293B;border:1px solid #475569;padding:0.5rem 0.8rem;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:0.5rem;}
 .ch .dot{width:8px;height:8px;background:#4ADE80;border-radius:50%;animation:p 2s infinite;}@keyframes p{0%,100%{opacity:1}50%{opacity:0.4}}
 .ch .nm{font-weight:700;font-size:1rem;color:#F1F5F9;}.ch .rl{font-size:0.85rem;color:#CBD5E1;}
@@ -195,11 +208,41 @@ div[data-testid="stHorizontalBlock"]:first-child .stRadio div[role="radiogroup"]
 [data-testid="stMetricLabel"]{color:#CBD5E1!important;}
 .stButton>button[kind="primary"],.stButton>button[data-testid="stBaseButton-primary"]{background:#D4A843!important;color:#000!important;border:none!important;font-weight:900!important;font-size:1rem!important;-webkit-text-fill-color:#000!important;}
 .stButton>button:not([kind="primary"]){background:#1E293B!important;color:#F1F5F9!important;border:1px solid #475569!important;font-weight:700!important;font-size:0.95rem!important;-webkit-text-fill-color:#F1F5F9!important;}
-[data-testid="stChatInput"]{background:#FFF!important;border:2px solid #475569;border-radius:8px;min-height:50px;}
+[data-testid="stChatInput"]{background:#FFF!important;border:2px solid #475569;border-radius:8px;min-height:120px;}
 [data-testid="stChatInput"] textarea{background:#FFF!important;color:#000!important;font-size:1rem!important;-webkit-text-fill-color:#000!important;}
 [data-testid="stChatInput"] button{background:#D4A843!important;color:#000!important;}
 @media(max-width:900px){.tg{grid-template-columns:1fr;}}
 </style>""",unsafe_allow_html=True)
+
+# ══════ THEME TOGGLE ══════
+if 'dark_mode' not in st.session_state:st.session_state.dark_mode=True
+if not st.session_state.dark_mode:
+    st.markdown("""<style>
+    .stApp,[data-testid="stAppViewContainer"]{background:#F8FAFC!important;color:#1E293B!important;}
+    h1,h2,h3,h4{color:#0F172A!important;}p,li,span,.stMarkdown{color:#334155!important;}
+    .cd,.fb{background:#FFFFFF!important;border-color:#E2E8F0!important;color:#1E293B!important;}
+    .cd *,.fb *{color:#1E293B!important;}
+    .tt{background:#F1F5F9!important;border-color:#D4A843!important;}.tt *{color:#1E293B!important;}
+    .su{background:#FFFBEB!important;border-color:#D4A843!important;}.su *{color:#92400E!important;}
+    .ch{background:#F1F5F9!important;border-color:#CBD5E1!important;}.ch *{color:#1E293B!important;}
+    .cd2{color:#64748B!important;}
+    .pv{background:#EFF6FF!important;color:#1E40AF!important;border-color:#BFDBFE!important;}
+    .cmp-tbl th{background:#F1F5F9!important;color:#0F172A!important;border-color:#E2E8F0!important;}
+    .cmp-tbl td{color:#1E293B!important;border-color:#E2E8F0!important;}
+    .cmp-tbl tr.total td{color:#92400E!important;}
+    .logo-panel{background:#FFFFFF!important;border-color:#E2E8F0!important;}
+    [data-testid="stSelectbox"]>div>div{background:#FFF!important;color:#1E293B!important;border-color:#CBD5E1!important;}
+    [data-testid="stNumberInput"] input{background:#FFF!important;color:#1E293B!important;border-color:#CBD5E1!important;}
+    .stTextInput input{background:#FFF!important;color:#1E293B!important;border-color:#CBD5E1!important;}
+    [data-testid="stExpander"]{background:#FFF!important;border-color:#E2E8F0!important;}
+    [data-testid="stExpander"] summary{color:#1E293B!important;}
+    [data-testid="stMultiSelect"]>div>div{background:#FFF!important;color:#1E293B!important;border-color:#CBD5E1!important;}
+    [data-testid="stMetric"]{background:#FFF!important;border-color:#E2E8F0!important;}
+    [data-testid="stFileUploader"]{background:#FFF!important;border-color:#E2E8F0!important;}
+    div[data-testid="stHorizontalBlock"]:first-child .stRadio label{background:#FFF!important;color:#1E293B!important;border-color:#CBD5E1!important;}
+    div[data-testid="stHorizontalBlock"]:first-child .stRadio label:hover{background:#F1F5F9!important;}
+    .stButton>button:not([kind="primary"]){background:#FFF!important;color:#1E293B!important;border-color:#CBD5E1!important;-webkit-text-fill-color:#1E293B!important;}
+    </style>""",unsafe_allow_html=True)
 
 # ══════ LOGIN GATE ══════
 if not check_login():st.stop()
@@ -220,10 +263,13 @@ SHORT="""You are {agent_name}, Indian tax advisor. Be CONCISE: 3-4 sentences max
 TABS=["Home","Tax Profile","Tax Calculator","Savings Finder","What-If Scenarios","Profiles","Law Updates","About"]
 if 'nav_radio' not in st.session_state:st.session_state.nav_radio="Home"
 
-nc1,nc2=st.columns([10,1])
+nc1,nc2,nc3=st.columns([9,1,1])
 with nc1:sel=st.radio("",TABS,horizontal=True,label_visibility="collapsed",key="nav_radio")
 with nc2:
-    if st.button("🚪",help="Log out",key="logout_btn"):
+    if st.button("🌓" if st.session_state.dark_mode else "☀️",key="theme_btn",help="Toggle dark/light mode"):
+        st.session_state.dark_mode=not st.session_state.dark_mode;st.rerun()
+with nc3:
+    if st.button("Logout",key="logout_btn"):
         for k in list(st.session_state.keys()):del st.session_state[k]
         st.rerun()
 st.session_state.pg=sel
@@ -238,7 +284,7 @@ def chat_with_logo(k=""):
     if LOGO:st.markdown(f'<div class="logo-panel"><img src="data:image/png;base64,{LOGO}"></div>',unsafe_allow_html=True)
     st.markdown(f'<div class="ch"><div class="dot"></div><div><span class="nm">{A}</span><br><span class="rl">Your Tax Agent</span></div></div>',unsafe_allow_html=True)
     lang=st.selectbox("",[ ("English","en"),("हिन्दी","hi"),("தமிழ்","ta"),("తెలుగు","te"),("ಕನ್ನಡ","kn")],format_func=lambda x:x[0],label_visibility="collapsed",key=f"l{k}")
-    bx=st.container(height=380)
+    bx=st.container(height=280)
     with bx:
         if not st.session_state.ch:st.markdown(f"👋 **I'm {A}.** Ask me any tax question.")
         for m in st.session_state.ch:
