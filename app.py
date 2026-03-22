@@ -36,9 +36,14 @@ st.set_page_config(
 )
 
 # ── Custom CSS ──
+LOGO_B64 = ""
+logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logo_app_b64.txt')
+if os.path.exists(logo_path):
+    with open(logo_path) as f:
+        LOGO_B64 = f.read().strip()
+
 st.markdown("""
 <style>
-    /* Brand colors */
     :root {
         --tg-primary: #1B4D3E;
         --tg-accent: #D4A843;
@@ -46,94 +51,120 @@ st.markdown("""
         --tg-dark: #0D2818;
     }
 
-    /* Header styling */
+    /* ── Hide Streamlit branding, fork button, GitHub attribution ── */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stAppToolbar {display: none !important;}
+    header[data-testid="stHeader"] {display: none !important;}
+    .viewerBadge_container__r5tak {display: none !important;}
+    [data-testid="manage-app-button"] {display: none !important;}
+    .styles_viewerBadge__CvC9N {display: none !important;}
+
+    /* ── Header ── */
     .main-header {
         background: linear-gradient(135deg, #1B4D3E 0%, #2D6A4F 100%);
         color: white;
-        padding: 1.5rem 2rem;
+        padding: 1rem 1.5rem;
         border-radius: 12px;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
     }
-    .main-header h1 {
-        color: white !important;
-        margin: 0;
-        font-size: 1.8rem;
-    }
-    .main-header p {
-        color: #C8D6C0;
-        margin: 0.3rem 0 0 0;
-        font-size: 0.95rem;
-    }
+    .main-header img { height: 40px; }
+    .main-header h1 { color: white !important; margin: 0; font-size: 1.5rem; }
+    .main-header p { color: #C8D6C0; margin: 0; font-size: 0.85rem; }
 
-    /* Tax result cards */
+    /* ── Tax cards ── */
     .tax-card {
-        background: white;
-        border: 1px solid #E0E0E0;
-        border-radius: 12px;
-        padding: 1.2rem;
-        margin: 0.5rem 0;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        background: white; border: 1px solid #E0E0E0; border-radius: 12px;
+        padding: 1.2rem; margin: 0.5rem 0; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     }
     .tax-card.green { border-left: 4px solid #2E7D32; }
     .tax-card.amber { border-left: 4px solid #F57F17; }
     .tax-card.red { border-left: 4px solid #C62828; }
     .tax-card.blue { border-left: 4px solid #1565C0; }
 
-    /* Metric display */
-    .big-metric {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #1B4D3E;
-        line-height: 1.2;
-    }
-    .metric-label {
-        font-size: 0.85rem;
-        color: #666;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    /* Recommendation badges */
-    .rec-badge {
-        display: inline-block;
-        padding: 0.3rem 0.8rem;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 600;
-    }
-    .rec-save { background: #E8F5E9; color: #2E7D32; }
-    .rec-check { background: #FFF3E0; color: #E65100; }
-    .rec-required { background: #FFEBEE; color: #C62828; }
-
-    /* Privacy banner */
+    /* ── Privacy banner ── */
     .privacy-banner {
-        background: #E3F2FD;
-        border: 1px solid #90CAF9;
-        border-radius: 8px;
-        padding: 0.8rem 1rem;
-        font-size: 0.85rem;
-        color: #1565C0;
-        margin-bottom: 1rem;
+        background: #E3F2FD; border: 1px solid #90CAF9; border-radius: 8px;
+        padding: 0.8rem 1rem; font-size: 0.85rem; color: #1565C0; margin-bottom: 1rem;
     }
-
-    /* Disclaimer */
     .disclaimer {
-        background: #FFF8E1;
-        border: 1px solid #FFE082;
-        border-radius: 8px;
-        padding: 0.8rem;
-        font-size: 0.8rem;
-        color: #6D4C00;
+        background: #FFF8E1; border: 1px solid #FFE082; border-radius: 8px;
+        padding: 0.8rem; font-size: 0.8rem; color: #6D4C00;
     }
 
-    /* Sidebar styling */
-    [data-testid="stSidebar"] {
-        background: #F7F5F0;
-    }
+    /* ── Sidebar ── */
+    [data-testid="stSidebar"] { background: #F7F5F0; }
 
-    /* Hide Streamlit branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
+    /* ── Home page hero ── */
+    .hero-section {
+        background: linear-gradient(135deg, #0D2818 0%, #1B4D3E 60%, #2D6A4F 100%);
+        color: white; padding: 3rem 2rem; border-radius: 16px; text-align: center;
+        margin-bottom: 2rem; position: relative; overflow: hidden;
+    }
+    .hero-section::before {
+        content: ''; position: absolute; top: -40%; right: -15%;
+        width: 500px; height: 500px;
+        background: radial-gradient(circle, rgba(212,168,67,0.08) 0%, transparent 70%);
+        border-radius: 50%;
+    }
+    .hero-section h1 { color: #D4A843 !important; font-size: 2.5rem; margin: 0.5rem 0; }
+    .hero-section .subtitle { color: #C8D6C0; font-size: 1.1rem; max-width: 600px; margin: 0 auto 1.5rem; line-height: 1.6; }
+    .hero-section img { height: 70px; margin-bottom: 0.5rem; }
+    .badge-row { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; margin-top: 1rem; }
+    .badge-item {
+        padding: 0.3rem 0.8rem; background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.15); border-radius: 20px;
+        font-size: 0.75rem; color: #D4A843; font-weight: 500;
+    }
+    .stat-bar {
+        display: flex; justify-content: center; gap: 2.5rem; padding: 1.5rem;
+        background: #F7F5F0; border-radius: 12px; margin-bottom: 2rem; flex-wrap: wrap;
+    }
+    .stat-item { text-align: center; }
+    .stat-num { font-size: 1.8rem; font-weight: 700; color: #1B4D3E; }
+    .stat-label { font-size: 0.8rem; color: #636E72; }
+    .feature-grid {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1rem; margin: 1.5rem 0;
+    }
+    .feature-card-home {
+        background: white; border: 1px solid #E8E8E8; border-radius: 12px;
+        padding: 1.2rem; border-left: 4px solid #1B4D3E;
+        transition: box-shadow 0.3s;
+    }
+    .feature-card-home:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+    .feature-card-home h4 { color: #1B4D3E; margin: 0 0 0.4rem 0; font-size: 1rem; }
+    .feature-card-home p { color: #636E72; font-size: 0.85rem; margin: 0; line-height: 1.5; }
+    .trust-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1rem 0; }
+    .trust-card {
+        background: #F7F5F0; border-radius: 12px; padding: 1.5rem;
+    }
+    .trust-card h4 { color: #1B4D3E; margin: 0 0 0.6rem 0; }
+    .trust-card ul { list-style: none; padding: 0; margin: 0; }
+    .trust-card li { padding: 0.2rem 0; font-size: 0.85rem; color: #2D3436; }
+    .trust-card li::before { content: '✓ '; color: #2E7D32; font-weight: 700; }
+
+    /* ── Floating chat button ── */
+    .chat-fab {
+        position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+        width: 56px; height: 56px; border-radius: 50%;
+        background: linear-gradient(135deg, #1B4D3E, #2D6A4F);
+        color: white; font-size: 24px; display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.25); cursor: pointer;
+        text-decoration: none; transition: transform 0.2s;
+    }
+    .chat-fab:hover { transform: scale(1.1); color: white; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+        .hero-section h1 { font-size: 1.8rem; }
+        .stat-bar { gap: 1rem; }
+        .trust-grid { grid-template-columns: 1fr; }
+        .chat-fab { bottom: 16px; right: 16px; width: 48px; height: 48px; font-size: 20px; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -148,6 +179,8 @@ if 'interaction_count' not in st.session_state:
     st.session_state.interaction_count = 0
 if 'last_feedback_at' not in st.session_state:
     st.session_state.last_feedback_at = 0
+if 'chat_open' not in st.session_state:
+    st.session_state.chat_open = False
 if 'vector_db' not in st.session_state:
     st.session_state.vector_db = TaxVectorDB()
     st.session_state.vector_db.index_knowledge_base(TAX_KNOWLEDGE_BASE)
@@ -155,36 +188,24 @@ if 'vector_db' not in st.session_state:
 # ── API Key ──
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", "AIzaSyCFVj4qezxu2Yny6pxsgG3dzK0qMBBQkKQ"))
 
-# ── Header ──
-st.markdown("""
-<div class="main-header">
-    <h1>🏛️ TaxGuru</h1>
-    <p>AI-Powered Indian Income Tax Advisor • FY 2025-26 (AY 2026-27) • Powered by Gemini AI + RAG</p>
-</div>
-""", unsafe_allow_html=True)
-
-# ── Privacy Banner ──
-st.markdown("""
-<div class="privacy-banner">
-    🔒 <strong>Your privacy is protected.</strong> TaxGuru never stores your PAN, Aadhaar, bank account numbers, 
-    or personal identifiers. Only anonymized financial figures are processed. All data is encrypted in-session and 
-    cleared when you close the browser.
-</div>
-""", unsafe_allow_html=True)
+# ── Header (shown on all pages except Home) ──
+logo_img_tag = f'<img src="data:image/png;base64,{LOGO_B64}" alt="TaxGuru">' if LOGO_B64 else '🏛️'
 
 # ── Sidebar Navigation ──
 with st.sidebar:
-    st.markdown("### 📋 Navigation")
+    if LOGO_B64:
+        st.markdown(f'<div style="text-align:center;padding:0.5rem 0"><img src="data:image/png;base64,{LOGO_B64}" style="height:50px"></div>', unsafe_allow_html=True)
+    st.markdown("### Navigation")
     page = st.radio(
         "Choose a tool:",
         [
-            "🏠 Tax Profile",
+            "🏠 Home",
+            "📋 Tax Profile",
             "🧮 Tax Calculator",
             "📄 Payslip Analyzer",
             "💡 Tax Optimizer",
             "🔀 Scenario Planner",
             "📰 Law Updates",
-            "💬 AI Tax Chat",
             "ℹ️ About & Privacy",
         ],
         label_visibility="collapsed"
@@ -214,11 +235,190 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
+# ── Show header on non-Home pages ──
+if page != "🏠 Home":
+    st.markdown(f"""
+    <div class="main-header">
+        {logo_img_tag}
+        <div>
+            <h1>TaxGuru</h1>
+            <p>AI-Powered Indian Income Tax Advisor • FY 2025-26 (AY 2026-27)</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="privacy-banner">
+        🔒 <strong>Your privacy is protected.</strong> TaxGuru never stores your PAN, Aadhaar, bank account numbers, 
+        or personal identifiers. Only anonymized financial figures are processed. All data is encrypted in-session and 
+        cleared when you close the browser.
+    </div>
+    """, unsafe_allow_html=True)
+
 
 # ══════════════════════════════════════════
+# FLOATING CHAT WIDGET (rendered on every page)
+# ══════════════════════════════════════════
+def render_chat_widget():
+    """Render floating chat button and expandable chat panel at bottom of every page"""
+    # Floating action button (always visible)
+    st.markdown('<a href="#taxguru-chat" class="chat-fab" title="AI Tax Chat">💬</a>', unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown('<div id="taxguru-chat"></div>', unsafe_allow_html=True)
+
+    with st.expander("💬 AI Tax Chat — Ask any tax question", expanded=st.session_state.chat_open):
+        # Language selector
+        lang_col1, lang_col2 = st.columns([3, 1])
+        with lang_col2:
+            language = st.selectbox("🌐", [
+                ("EN", "en"), ("हिन्दी", "hi"), ("தமிழ்", "ta"), ("తెలుగు", "te"), ("ಕನ್ನಡ", "kn"),
+            ], format_func=lambda x: x[0], label_visibility="collapsed", key="chat_lang")
+            lang_code = language[1]
+        with lang_col1:
+            st.markdown("**Ask about any tax topic — regime comparison, ESOP, F&O, capital gains, deductions...**")
+
+        # Chat history in scrollable container
+        chat_container = st.container(height=300)
+        with chat_container:
+            if not st.session_state.chat_history:
+                st.markdown("*👋 Hi! Ask me any Indian income tax question. I'll cite the relevant sections and never guess.*")
+            for msg in st.session_state.chat_history:
+                with st.chat_message(msg['role']):
+                    st.markdown(msg['content'])
+
+        # Chat input
+        if prompt := st.chat_input("Ask a tax question...", key="floating_chat_input"):
+            clean_prompt, redacted = anonymize_text(prompt)
+            if redacted > 0:
+                st.warning(f"⚠️ {redacted} personal identifier(s) detected and removed for your privacy.")
+
+            st.session_state.chat_history.append({'role': 'user', 'content': prompt})
+            st.session_state.chat_open = True
+
+            # Build RAG context
+            profile_data = extract_financial_only(vars(st.session_state.profile)) if st.session_state.profile_complete else {}
+            rag_result = build_rag_query(clean_prompt, profile_data)
+
+            # Call Gemini
+            response = call_gemini(
+                prompt=clean_prompt,
+                context=rag_result['context'],
+                language=lang_code,
+                api_key=GEMINI_API_KEY
+            )
+
+            st.session_state.chat_history.append({'role': 'assistant', 'content': response})
+            st.session_state.interaction_count += 1
+            st.rerun()
+
+
+# ══════════════════════════════════════════
+# PAGE: HOME
+# ══════════════════════════════════════════
+if page == "🏠 Home":
+    logo_src = f'<img src="data:image/png;base64,{LOGO_B64}" alt="TaxGuru">' if LOGO_B64 else ''
+
+    st.markdown(f"""
+    <div class="hero-section">
+        {logo_src}
+        <h1>TaxGuru</h1>
+        <p class="subtitle">
+            Stop overpaying your taxes. TaxGuru uses AI grounded in real Indian tax law to help you
+            choose the right regime, maximize deductions, and plan smarter — all before the deadline.
+        </p>
+        <div class="badge-row">
+            <span class="badge-item">RAG-Powered</span>
+            <span class="badge-item">Zero Hallucination</span>
+            <span class="badge-item">Privacy-First</span>
+            <span class="badge-item">FY 2025-26</span>
+            <span class="badge-item">Hindi + 3 Languages</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Stats bar
+    st.markdown("""
+    <div class="stat-bar">
+        <div class="stat-item"><div class="stat-num">9 Cr+</div><div class="stat-label">ITR Filers (CBDT FY25)</div></div>
+        <div class="stat-item"><div class="stat-num">₹3.9L Cr</div><div class="stat-label">Refunds Issued (FY25)</div></div>
+        <div class="stat-item"><div class="stat-num">2 Regimes</div><div class="stat-label">70+ Deduction Sections</div></div>
+        <div class="stat-item"><div class="stat-num">47</div><div class="stat-label">Tax Sections in our AI</div></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # CTA
+    st.markdown("### 🚀 Get Started")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📄 Upload Payslip / Form 16", use_container_width=True, type="primary"):
+            st.session_state['nav_target'] = "📋 Tax Profile"
+            st.rerun()
+    with col2:
+        if st.button("✏️ Enter Details Manually", use_container_width=True):
+            st.session_state['nav_target'] = "📋 Tax Profile"
+            st.rerun()
+
+    # Features
+    st.markdown("### Everything You Need to Save Tax")
+    st.markdown("""
+    <div class="feature-grid">
+        <div class="feature-card-home">
+            <h4>⚖️ Regime Comparison</h4>
+            <p>Side-by-side Old vs New regime with your exact numbers. See the rupee difference instantly.</p>
+        </div>
+        <div class="feature-card-home">
+            <h4>📄 Payslip / Form 16 Analyzer</h4>
+            <p>Upload a payslip or Form 16. AI extracts every component and projects your full-year tax.</p>
+        </div>
+        <div class="feature-card-home">
+            <h4>💡 Tax Optimizer</h4>
+            <p>Personalized recommendations — specific amounts, specific instruments, specific deadlines.</p>
+        </div>
+        <div class="feature-card-home">
+            <h4>🔀 Scenario Planner</h4>
+            <p>What if I get a raise? Sell shares? Switch regimes? See exact tax impact before you decide.</p>
+        </div>
+        <div class="feature-card-home">
+            <h4>💬 AI Chat (4 Languages)</h4>
+            <p>Ask tax questions in English, Hindi, Tamil, Telugu, or Kannada. Cites actual sections. Never guesses.</p>
+        </div>
+        <div class="feature-card-home">
+            <h4>🏢 All Taxpayer Types</h4>
+            <p>Salaried, business owners, professionals, F&O traders, ESOP holders, NRIs, senior citizens.</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Trust section
+    st.markdown("### Built on Trust")
+    st.markdown("""
+    <div class="trust-grid">
+        <div class="trust-card">
+            <h4>🛡️ Zero Hallucination</h4>
+            <ul>
+                <li>Every answer grounded in RAG over actual tax law</li>
+                <li>Tax computation is deterministic Python — not AI-generated</li>
+                <li>Always cites section numbers (80C, 112A, etc.)</li>
+                <li>Says "consult a CA" when unsure — never guesses</li>
+            </ul>
+        </div>
+        <div class="trust-card">
+            <h4>🔒 Privacy-First</h4>
+            <ul>
+                <li>PAN, Aadhaar, bank details — never stored or sent</li>
+                <li>8 types of identifiers auto-detected and stripped</li>
+                <li>Only anonymized financial figures reach the AI</li>
+                <li>Session-only storage — cleared on browser close</li>
+            </ul>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    render_chat_widget()
 # PAGE: TAX PROFILE
 # ══════════════════════════════════════════
-if page == "🏠 Tax Profile":
+if page == "📋 Tax Profile":
     st.markdown("## Set Up Your Tax Profile")
     st.markdown("Upload a document or fill in manually — either way, we'll compute your optimal tax strategy.")
 
@@ -505,6 +705,8 @@ if page == "🏠 Tax Profile":
         st.success("✅ Profile saved! Check the sidebar for your tax summary, or navigate to the Tax Calculator for details.")
         st.rerun()
 
+    render_chat_widget()
+
 
 # ══════════════════════════════════════════
 # PAGE: TAX CALCULATOR
@@ -588,6 +790,9 @@ elif page == "🧮 Tax Calculator":
             st.markdown(f"- LTCG on Other Assets (12.5%): {format_currency(new['ltcg_other_tax'])}")
 
 
+    render_chat_widget()
+
+
 # ══════════════════════════════════════════
 # PAGE: PAYSLIP ANALYZER
 # ══════════════════════════════════════════
@@ -657,6 +862,9 @@ elif page == "📄 Payslip Analyzer":
             st.metric("Estimated Tax", format_lakhs(best['total_tax']))
         with col3:
             st.metric("Monthly Take-Home (approx)", format_currency(monthly_gross - best['total_tax']/12))
+
+
+    render_chat_widget()
 
 
 # ══════════════════════════════════════════
@@ -775,6 +983,9 @@ elif page == "💡 Tax Optimizer":
             """, unsafe_allow_html=True)
 
 
+    render_chat_widget()
+
+
 # ══════════════════════════════════════════
 # PAGE: SCENARIO PLANNER
 # ══════════════════════════════════════════
@@ -856,6 +1067,9 @@ elif page == "🔀 Scenario Planner":
         st.metric("Additional Tax from Sale", format_currency(extra_tax))
 
 
+    render_chat_widget()
+
+
 # ══════════════════════════════════════════
 # PAGE: LAW UPDATES
 # ══════════════════════════════════════════
@@ -927,67 +1141,7 @@ elif page == "📰 Law Updates":
                 st.info("No results found. Try different keywords or ask the AI Chat.")
 
 
-# ══════════════════════════════════════════
-# PAGE: AI TAX CHAT
-# ══════════════════════════════════════════
-elif page == "💬 AI Tax Chat":
-    st.markdown("## AI Tax Assistant")
-    st.markdown("Ask any tax question. Grounded in Indian tax law — cites sections, never guesses.")
-
-    # Language selector
-    col1, col2 = st.columns([3, 1])
-    with col2:
-        language = st.selectbox("🌐 Language", [
-            ("English", "en"),
-            ("हिन्दी (Hindi)", "hi"),
-            ("தமிழ் (Tamil)", "ta"),
-            ("తెలుగు (Telugu)", "te"),
-            ("ಕನ್ನಡ (Kannada)", "kn"),
-        ], format_func=lambda x: x[0])
-        lang_code = language[1]
-
-    # Display chat history
-    for msg in st.session_state.chat_history:
-        with st.chat_message(msg['role']):
-            st.markdown(msg['content'])
-
-    # Chat input
-    if prompt := st.chat_input("Ask a tax question..."):
-        # Anonymize user input
-        clean_prompt, redacted = anonymize_text(prompt)
-        if redacted > 0:
-            st.warning(f"⚠️ We detected {redacted} personal identifier(s) in your message. These have been automatically removed for your privacy.")
-
-        st.session_state.chat_history.append({'role': 'user', 'content': prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        # Build RAG context
-        profile_data = extract_financial_only(vars(st.session_state.profile)) if st.session_state.profile_complete else {}
-        rag_result = build_rag_query(clean_prompt, profile_data)
-
-        # Call Gemini with RAG context
-        with st.chat_message("assistant"):
-            with st.spinner("Researching tax law..."):
-                response = call_gemini(
-                    prompt=clean_prompt,
-                    context=rag_result['context'],
-                    language=lang_code,
-                    api_key=GEMINI_API_KEY
-                )
-                st.markdown(response)
-
-        st.session_state.chat_history.append({'role': 'assistant', 'content': response})
-        st.session_state.interaction_count += 1
-
-        # Non-intrusive feedback check
-        if should_ask_feedback(st.session_state.interaction_count, st.session_state.last_feedback_at):
-            st.markdown("---")
-            feedback = st.radio(FEEDBACK_PROMPTS[st.session_state.interaction_count % len(FEEDBACK_PROMPTS)],
-                                ["👍 Helpful", "👎 Not helpful", "Skip"], horizontal=True)
-            if feedback != "Skip":
-                st.session_state.last_feedback_at = st.session_state.interaction_count
-                st.toast("Thanks for the feedback!")
+    render_chat_widget()
 
 
 # ══════════════════════════════════════════
@@ -1062,3 +1216,5 @@ elif page == "ℹ️ About & Privacy":
         st.metric("Vector DB", "Active" if stats.get('chroma_available') else "Keyword Fallback")
     with col3:
         st.metric("LLM Model", "Gemini 2.5 Flash-Lite")
+
+    render_chat_widget()
