@@ -25,7 +25,7 @@ if uploaded_file:
 
     result = analyze_document(
         uploaded_file.read(),
-        api_key=os.environ.get("GEMINI_API_KEY"),
+        api_key=os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY"),
         mime_type=uploaded_file.type
     )
 
@@ -58,7 +58,7 @@ user_input = st.chat_input("Ask anything...")
 if user_input:
     response = call_agent(
         user_input,
-        api_key=os.environ.get("GEMINI_API_KEY"),
+        api_key=os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY"),
         user_profile=st.session_state.user_profile
     )
 
