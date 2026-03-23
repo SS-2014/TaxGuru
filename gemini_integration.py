@@ -44,7 +44,7 @@ OUTPUT FORMAT:
 # =========================
 # CACHE (CRITICAL)
 # =========================
-@lru_cache(maxsize=200)
+#@lru_cache(maxsize=200)
 def cached_call(prompt, api_key):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={api_key}"
 
@@ -52,24 +52,15 @@ def cached_call(prompt, api_key):
     "contents": [
         {
             "role": "user",
-            "parts": [
-                {"text": prompt},
-                {
-                    "inline_data": {
-                        "mime_type": mime_type,
-                        "data": encoded_image
-                    }
-                }
-            ]
+            "parts": [{"text": prompt}]
         }
     ],
     "generationConfig": {
-        "temperature": 0.3,
+        "temperature": 0.5,
         "topP": 0.9,
-        "maxOutputTokens": 1000,
+        "maxOutputTokens": 800,
     }
 }
-
     for i in range(3):
         try:
             res = requests.post(url, json=payload, timeout=30)
@@ -147,19 +138,27 @@ Return ONLY valid JSON:
  "period": "monthly" or "annual"
 }
 """
-
+    encoded_image = base64.b64encode(image_bytes).decode("utf-8")
     payload = {
-        "contents": [{
-            "parts": [
-                {"text": prompt},
-                {
-                    "inline_data": {
-                        "mime_type": mime_type,
-                        encoded_image = base64.b64encode(image_bytes).decode("utf-8")
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    {"text": prompt},
+                    {
+                        "inline_data": {
+                            "mime_type": mime_type,
+                            "data": encoded_image
+                        }
                     }
-                }
-            ]
-        }]
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.2,
+            "topP": 0.9,
+            "maxOutputTokens": 1000
+        }
     }
 
     try:
