@@ -111,6 +111,8 @@ USER QUERY:
         return "⚠️ API error. Please try again."
 
     try:
+        if "candidates" not in response:
+            return f"⚠️ Invalid response: {response}"
         text = response["candidates"][0]["content"]["parts"][0]["text"]
         return text.strip()
     except:
@@ -162,10 +164,10 @@ Return ONLY valid JSON:
     }
 
     try:
-        res = requests.post(url, json=payload)
+        res = requests.post(url, json=payload, timeout=30)
 
         if res.status_code != 200:
-            return {"error": "API failure"}
+            return {"error": f"API error {res.status_code}: {res.text}"}
 
         data = res.json()
         if "candidates" not in data:
