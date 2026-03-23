@@ -3,6 +3,7 @@ import json
 import time
 import re
 import os
+import base64
 from functools import lru_cache
 
 MODEL = "gemini-2.5-flash"
@@ -48,13 +49,26 @@ def cached_call(prompt, api_key):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={api_key}"
 
     payload = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.5,
-            "topP": 0.9,
-            "maxOutputTokens": 800,
+    "contents": [
+        {
+            "role": "user",
+            "parts": [
+                {"text": prompt},
+                {
+                    "inline_data": {
+                        "mime_type": mime_type,
+                        "data": encoded_image
+                    }
+                }
+            ]
         }
+    ],
+    "generationConfig": {
+        "temperature": 0.3,
+        "topP": 0.9,
+        "maxOutputTokens": 1000,
     }
+}
 
     for i in range(3):
         try:
@@ -141,7 +155,7 @@ Return ONLY valid JSON:
                 {
                     "inline_data": {
                         "mime_type": mime_type,
-                        "data": image_bytes.decode("latin1")
+                        encoded_image = base64.b64encode(image_bytes).decode("utf-8")
                     }
                 }
             ]
@@ -154,7 +168,10 @@ Return ONLY valid JSON:
         if res.status_code != 200:
             return {"error": "API failure"}
 
-        text = res.json()["candidates"][0]["content"]["parts"][0]["text"]
+        data = res.json()
+        if "candidates" not in data:
+            return {"error": str(data)}
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
 
         match = re.search(r"\{.*\}", text, re.DOTALL)
 
