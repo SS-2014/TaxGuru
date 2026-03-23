@@ -1,62 +1,19 @@
 """
-TaxGuru — Gemini API Integration with RAG
-Handles: LLM calls, RAG context injection, privacy filtering, multi-language chat
+TaxGuru AI Engine — Powered by Groq
+Uses:
+  - llama-3.3-70b-versatile: Main chat (fast, smart, free tier ~30 RPM)
+  - meta-llama/llama-4-scout-17b-16e-instruct: Vision/document analysis
+  - compound-beta: Web search when needed
+All via OpenAI-compatible REST API — no SDK needed.
 """
 
-import json
 import re
+import json
 import os
-import hashlib
-from typing import Optional
+import requests
+import base64
 
-# ── Privacy Layer ──
-
-SENSITIVE_PATTERNS = {
-    'pan': r'\b[A-Z]{5}\d{4}[A-Z]\b',
-    'aadhaar': r'\b\d{4}\s?\d{4}\s?\d{4}\b',
-    'bank_account': r'\b\d{9,18}\b',
-    'ifsc': r'\b[A-Z]{4}0[A-Z0-9]{6}\b',
-    'phone': r'\b[+]?91[-\s]?\d{10}\b|\b\d{10}\b',
-    'email': r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b',
-    'date_of_birth': r'\b\d{2}[/-]\d{2}[/-]\d{4}\b',
-    'pf_number': r'\b[A-Z]{2}[/]?[A-Z]{3}[/]?\d{7}[/]?\d{3}[/]?\d{7}\b',
-    'uan': r'\b\d{12}\b',  # Universal Account Number
-}
-
-
-def anonymize_text(text: str) -> tuple:
-    """Remove all PII from text, return (clean_text, redacted_items_count)"""
-    redacted_count = 0
-    clean = text
-    for pii_type, pattern in SENSITIVE_PATTERNS.items():
-        matches = re.findall(pattern, clean)
-        for match in matches:
-            clean = clean.replace(match, f'[REDACTED_{pii_type.upper()}]')
-            redacted_count += 1
-    return clean, redacted_count
-
-
-def generate_anonymous_id(user_data: dict) -> str:
-    """Generate a consistent anonymous user ID from non-sensitive profile data"""
-    key_data = f"{user_data.get('taxpayer_type', '')}-{user_data.get('age', '')}-{user_data.get('income_bracket', '')}"
-    return hashlib.sha256(key_data.encode()).hexdigest()[:12]
-
-
-def extract_financial_only(profile: dict) -> dict:
-    """Extract only financial figures, stripping all PII"""
-    safe_fields = [
-        'taxpayer_type', 'age', 'residency', 'gross_salary', 'basic_salary',
-        'hra_received', 'business_income', 'professional_income', 'trading_income',
-        'rental_income', 'interest_income', 'dividend_income',
-        'stcg_equity', 'ltcg_equity', 'stcg_other', 'ltcg_other',
-        'esop_perquisite', 'esop_sale_gain', 'foreign_esop',
-        'section_80c', 'section_80d_self', 'section_80d_parents',
-        'section_80e', 'section_80g', 'section_80ccd_1b', 'section_80ccd_2',
-        'section_24b', 'rent_paid_annual', 'metro_city',
-        'tds_deducted', 'advance_tax_paid',
-    ]
-    return {k: v for k, v in profile.items() if k in safe_fields}
-
+GROQ_BASE = "https://api.groq.com/openai/v1/chat/completions"
 
 # ── System Prompts ──
 
@@ -64,20 +21,26 @@ SYSTEM_PROMPT_TAX_ADVISOR = """You are {agent_name}, a personal Indian income ta
 
 CORE PRINCIPLES:
 1. ACCURACY FIRST: Only provide advice grounded in the Income Tax Act (1961 and 2025), Finance Acts, CBDT circulars, and established case law. If you are unsure, say so clearly.
-2. NO HALLUCINATION: Never invent tax sections, rates, or rules. If you don't know something, say "I'm not certain — please consult a Chartered Accountant for this specific question."
-3. CITE SECTIONS: Always reference the specific section/rule (e.g., "Under Section 80C...", "As per Section 112A...").
-4. REGIME AWARENESS: Always clarify whether a deduction/exemption applies to Old Regime, New Regime, or both.
+2. CITE SECTIONS: Always reference specific sections (e.g., "Section 80C", "Section 112A", "Rule 11UA"). This builds trust and lets users verify.
+3. DUAL REGIME AWARENESS: India has two tax regimes — Old (with deductions) and New (lower rates, limited deductions). Always consider both when relevant.
+4. PRACTICAL ADVICE: Don't just explain the law — tell the user what to DO. Recommend specific actions, investments, or filings.
 5. TONE: Professional, warm, helpful. Speak as {agent_name}. Use first person ("I recommend...", "Based on your numbers, I see that..."). Not robotic or overly formal.
-6. PRIVACY: Never ask for PAN, Aadhaar, bank account numbers, or personal identifiers. Only work with financial figures.
-7. REAL-TIME: You have access to provisions up to the CBDT notification of Income Tax Rules 2026 (March 20, 2026). The new Income Tax Act 2025 takes effect from April 2026. HRA now covers 8 metro cities. CARF (Crypto Asset Reporting) is now in effect.
+6. PRIVACY: Never ask for or reference PAN, Aadhaar, bank accounts, employer names, or personal identifiers. Work only with financial numbers.
+7. CURRENT LAW: Apply FY 2025-26 rules including Budget 2025 changes (new regime default, ₹12.75L tax-free, 87A rebate ₹60K, standard deduction ₹75K, capital gains changes).
 8. MULTILINGUAL: When responding in Hindi, Tamil, Telugu, or Kannada, keep tax terminology in English in parentheses for clarity. Refer to yourself as {agent_name} in all languages.
+9. PRODUCT RECOMMENDATIONS: When suggesting investments or insurance, give specific product names, expected returns, and lock-in periods available in India (e.g., "Mirae Asset ELSS Fund — ~15% 3yr CAGR, 3yr lock-in").
+10. WEB SEARCH: If the user asks about very recent developments, latest CBDT circulars, or current market rates, and you have web search context, use it to give the most current answer.
 
-When answering:
-- Start with the direct answer to the user's question
-- Cite the relevant section/rule
-- Give actionable next steps
-- If the situation is complex, recommend consulting a CA
-- If asked about very recent developments, note what you know and suggest checking incometaxindia.gov.in for the latest"""
+KEY FY 2025-26 FACTS:
+- New Regime Slabs: 0-4L: Nil, 4-8L: 5%, 8-12L: 10%, 12-16L: 15%, 16-20L: 20%, 20-24L: 25%, 24L+: 30%
+- Old Regime: 0-2.5L: Nil (0-3L for seniors), 2.5-5L: 5%, 5-10L: 20%, 10L+: 30%
+- 87A Rebate: ₹60,000 (new), ₹12,500 (old)
+- Standard Deduction: ₹75,000 (new), ₹50,000 (old)
+- 80C: Max ₹1.5L | 80D: ₹25K self + ₹50K parents (senior) | 80CCD(1B): ₹50K NPS
+- LTCG equity: 12.5% above ₹1.25L | STCG equity: 20%
+- HRA: 8 metro cities from April 2026 (IT Rules 2026)
+- ESOP deferral: 48 months or exit, whichever earlier
+"""
 
 SYSTEM_PROMPT_DOCUMENT_ANALYZER = """You are a document analysis agent for TaxGuru. You extract financial data from Indian payslips, Form 16, and employer tax statements.
 
@@ -87,12 +50,12 @@ DOCUMENT TYPES YOU HANDLE:
 3. TAX COMPUTATION STATEMENT (annual): Employer's tax projection. Indicate "period": "annual".
 
 EXTRACT these fields (use 0 if not found, "NOT_FOUND" only if the document type should have it but it's illegible):
-- gross_salary: Total gross salary/CTC
+- gross_salary: Total gross salary/earnings
 - basic_salary: Basic pay component
 - hra: House Rent Allowance
-- special_allowance: Special/flexible allowance
+- special_allowance: Special/flexible/FBP allowance
 - lta: Leave Travel Allowance
-- pf_employee: Employee PF contribution
+- pf_employee: Employee PF/provident fund contribution
 - pf_employer: Employer PF contribution
 - professional_tax: Professional tax deducted
 - tds_deducted: Income tax / TDS deducted
@@ -110,129 +73,209 @@ EXTRACT these fields (use 0 if not found, "NOT_FOUND" only if the document type 
 
 RULES:
 1. Extract exact numbers. Do not estimate or round.
-2. For Form 16: Look for Part B (Annexure) which has detailed salary breakup and deductions.
-3. Never extract: Employee name, PAN, bank account, address, employee ID, UAN, PF number, company name, TAN, or any personal identifiers.
-4. Return ONLY a valid JSON object. No markdown, no explanation, no backticks."""
-
-LANGUAGE_PROMPTS = {
-    'hi': "Respond in Hindi (Devanagari script). Use simple Hindi that is easy to understand. For technical tax terms, use the English term in parentheses. Example: 'कर छूट (Tax Exemption)'. Keep the same accuracy and section references as English responses.",
-    'ta': "Respond in Tamil (Tamil script). Use simple Tamil. For technical tax terms, keep the English term in parentheses. Example: 'வரி விலக்கு (Tax Exemption)'. Maintain accuracy and cite sections.",
-    'te': "Respond in Telugu (Telugu script). Use simple Telugu. For technical tax terms, keep the English term in parentheses. Maintain accuracy and cite sections.",
-    'kn': "Respond in Kannada (Kannada script). Use simple Kannada. For technical tax terms, keep the English term in parentheses. Maintain accuracy and cite sections.",
-    'en': "",  # Default English, no additional instruction
-}
+2. NEVER extract or return: names, PAN, Aadhaar, employee ID, employer name, address, bank account, UAN.
+3. If a field is not present in the document, use 0.
+4. Return ONLY a valid JSON object with these fields. No explanation text.
+5. For monthly payslips: basic, hra, allowances are monthly amounts. gross_salary is the monthly total.
+"""
 
 
-# ── Gemini API Caller ──
+# ── Privacy Layer ──
+
+PERSONAL_PATTERNS = [
+    (r'\b[A-Z]{5}\d{4}[A-Z]\b', '[PAN_REDACTED]'),
+    (r'\b\d{4}\s?\d{4}\s?\d{4}\b', '[AADHAAR_REDACTED]'),
+    (r'\b\d{10,12}\b', '[PHONE/ACCT_REDACTED]'),
+    (r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '[EMAIL_REDACTED]'),
+    (r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b', '[DATE_REDACTED]'),
+    (r'(?i)\b(?:mr|mrs|ms|dr|shri|smt)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', '[NAME_REDACTED]'),
+]
+
+def anonymize_text(text: str) -> tuple:
+    """Remove personal identifiers from text. Returns (cleaned_text, redactions_made)."""
+    redactions = []
+    cleaned = text
+    for pattern, replacement in PERSONAL_PATTERNS:
+        matches = re.findall(pattern, cleaned)
+        if matches:
+            redactions.extend(matches)
+            cleaned = re.sub(pattern, replacement, cleaned)
+    return cleaned, redactions
+
+
+def extract_financial_only(profile_dict: dict) -> dict:
+    """Extract only financial fields from a profile dict, removing any personal info."""
+    financial_keys = {
+        'taxpayer_type', 'age', 'residency', 'metro_city',
+        'gross_salary', 'basic_salary', 'hra_received', 'rent_paid_annual',
+        'business_income', 'professional_income', 'trading_income',
+        'interest_income', 'rental_income', 'dividend_income',
+        'stcg_equity', 'stcg_other', 'ltcg_equity', 'ltcg_other',
+        'esop_perquisite', 'foreign_esop',
+        'section_80c', 'section_80d_self', 'section_80d_parents',
+        'section_80ccd_1b', 'section_80ccd_2', 'section_80e',
+        'section_80g', 'section_24b', 'section_80tta',
+        'tds_deducted', 'advance_tax_paid', 'lta',
+    }
+    return {k: v for k, v in profile_dict.items() if k in financial_keys and v}
+
+
+# ── Groq API Calls ──
+
+def _get_api_key():
+    """Get Groq API key from env or st.secrets."""
+    key = os.environ.get("GROQ_API_KEY", "")
+    if not key:
+        try:
+            import streamlit as st
+            key = st.secrets.get("GROQ_API_KEY", "")
+        except:
+            pass
+    return key
+
+
+def call_groq_chat(messages: list, model: str = "llama-3.3-70b-versatile",
+                    api_key: str = None, temperature: float = 0.3,
+                    max_tokens: int = 1024) -> str:
+    """Call Groq chat completion API."""
+    if not api_key:
+        api_key = _get_api_key()
+    if not api_key:
+        return "⚠️ GROQ_API_KEY not configured."
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+
+    try:
+        resp = requests.post(GROQ_BASE, headers=headers, json=payload, timeout=60)
+        if resp.status_code == 200:
+            data = resp.json()
+            return data['choices'][0]['message']['content']
+        else:
+            err = resp.json().get('error', {}).get('message', resp.text[:200])
+            return f"⚠️ API error ({resp.status_code}): {err}"
+    except Exception as e:
+        return f"⚠️ Connection error: {str(e)}"
+
 
 def call_gemini(prompt: str, system_prompt: str = SYSTEM_PROMPT_TAX_ADVISOR,
                 context: str = "", language: str = "en",
-                api_key: str = None, model: str = "gemini-2.0-flash",
+                api_key: str = None, model: str = "llama-3.3-70b-versatile",
                 agent_name: str = "TaxGuru AI") -> str:
-    """Call Gemini API with RAG context and language support"""
-    import requests
+    """
+    Main chat function — drop-in replacement for old Gemini version.
+    Same signature so app.py doesn't need changes.
+    """
+    # Get Groq key (not Gemini key)
+    groq_key = os.environ.get("GROQ_API_KEY", "")
+    if not groq_key:
+        try:
+            import streamlit as st
+            groq_key = st.secrets.get("GROQ_API_KEY", "")
+        except:
+            pass
+    # Fallback: try the old GEMINI_API_KEY name in case user hasn't updated secrets
+    if not groq_key:
+        groq_key = api_key or ""
+    if not groq_key:
+        return "⚠️ API key not configured. Add GROQ_API_KEY to secrets."
 
-    # Inject agent name into system prompt
-    system_prompt = system_prompt.replace("{agent_name}", agent_name)
+    resolved_system = system_prompt.replace("{agent_name}", agent_name)
 
-    if not api_key:
-        api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        return "Error: Gemini API key not configured. Please set GEMINI_API_KEY."
+    lang_instruction = ""
+    if language != "en":
+        lang_map = {"hi": "Hindi", "ta": "Tamil", "te": "Telugu", "kn": "Kannada"}
+        lang_name = lang_map.get(language, "English")
+        lang_instruction = f"\n\nIMPORTANT: Respond in {lang_name}. Keep tax terms in English in parentheses."
 
-    # Build the full prompt with RAG context
-    full_prompt_parts = [system_prompt]
-
-    if language != 'en' and language in LANGUAGE_PROMPTS:
-        full_prompt_parts.append(f"\n\nLANGUAGE INSTRUCTION: {LANGUAGE_PROMPTS[language]}")
-
+    user_content = prompt
     if context:
-        full_prompt_parts.append(f"\n\nRELEVANT TAX LAW CONTEXT (use this to ground your answer):\n{context}")
+        user_content = f"""KNOWLEDGE BASE CONTEXT (use this to ground your answer):
+{context}
 
-    full_prompt_parts.append(f"\n\nUSER QUERY: {prompt}")
+USER QUESTION: {prompt}"""
 
-    full_system = "\n".join(full_prompt_parts)
+    messages = [
+        {"role": "system", "content": resolved_system + lang_instruction},
+        {"role": "user", "content": user_content}
+    ]
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
-
-    payload = {
-        "contents": [
-            {
-                "role": "user",
-                "parts": [{"text": full_system}]
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0.3,  # Low temperature for factual accuracy
-            "topP": 0.8,
-            "maxOutputTokens": 2048,
-        },
-        "safetySettings": [
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-        ]
-    }
-
-    try:
-        response = requests.post(url, json=payload, timeout=30)
-        if response.status_code == 200:
-            data = response.json()
-            if 'candidates' in data and data['candidates']:
-                return data['candidates'][0]['content']['parts'][0]['text']
-            return "I couldn't generate a response. Please try rephrasing your question."
-        elif response.status_code == 429:
-            return "I'm currently handling too many requests. Please wait a moment and try again. (API rate limit reached)"
-        else:
-            return f"Service temporarily unavailable (Error {response.status_code}). Please try again."
-    except requests.exceptions.Timeout:
-        return "The request took too long. Please try a simpler question or try again."
-    except Exception as e:
-        return f"An error occurred: {str(e)}"
+    return call_groq_chat(messages, model="llama-3.3-70b-versatile",
+                          api_key=groq_key, temperature=0.3, max_tokens=1024)
 
 
 def analyze_document(image_bytes: bytes, api_key: str, mime_type: str = "image/jpeg") -> dict:
-    """Analyze a payslip/Form 16 image using Gemini Vision"""
-    import requests
-    import base64
+    """Analyze a payslip/Form 16 image using Groq Vision (Llama 4 Scout)."""
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    groq_key = os.environ.get("GROQ_API_KEY", "")
+    if not groq_key:
+        try:
+            import streamlit as st
+            groq_key = st.secrets.get("GROQ_API_KEY", "")
+        except:
+            pass
+    if not groq_key:
+        groq_key = api_key or ""
+    if not groq_key:
+        return {"error": "GROQ_API_KEY not configured"}
 
     b64_data = base64.b64encode(image_bytes).decode('utf-8')
 
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": SYSTEM_PROMPT_DOCUMENT_ANALYZER + "\n\nExtract all financial data from this payslip/Form 16 document. Return ONLY a JSON object with the extracted fields. No personal identifiers."},
-                    {
-                        "inlineData": {
-                            "mimeType": mime_type,
-                            "data": b64_data
-                        }
+    # Map common MIME types
+    if 'pdf' in mime_type.lower():
+        return {"error": "PDF upload not supported for vision. Please upload as image (JPG/PNG)."}
+
+    headers = {
+        "Authorization": f"Bearer {groq_key}",
+        "Content-Type": "application/json"
+    }
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": SYSTEM_PROMPT_DOCUMENT_ANALYZER + "\n\nExtract all financial data from this payslip/Form 16 document. Return ONLY a JSON object with the extracted fields. No personal identifiers. No explanation text — just the JSON."
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{mime_type};base64,{b64_data}"
                     }
-                ]
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0.1,
-            "maxOutputTokens": 1024,
+                }
+            ]
         }
+    ]
+
+    payload = {
+        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "messages": messages,
+        "temperature": 0.1,
+        "max_tokens": 1024,
     }
 
     try:
-        response = requests.post(url, json=payload, timeout=45)
-        if response.status_code == 200:
-            data = response.json()
-            text = data['candidates'][0]['content']['parts'][0]['text']
+        resp = requests.post(GROQ_BASE, headers=headers, json=payload, timeout=60)
+        if resp.status_code == 200:
+            data = resp.json()
+            text = data['choices'][0]['message']['content']
             # Try to parse JSON from response
             json_match = re.search(r'\{[\s\S]*\}', text)
             if json_match:
                 return json.loads(json_match.group())
             return {"raw_text": text, "parse_error": "Could not extract structured data"}
         else:
-            return {"error": f"API returned status {response.status_code}"}
+            err_body = resp.text[:300]
+            return {"error": f"Vision API error ({resp.status_code}): {err_body}"}
     except Exception as e:
         return {"error": str(e)}
 
@@ -240,83 +283,66 @@ def analyze_document(image_bytes: bytes, api_key: str, mime_type: str = "image/j
 # ── RAG Query Builder ──
 
 def build_rag_query(user_question: str, taxpayer_profile: dict = None) -> dict:
-    """Build a RAG-enhanced query with relevant knowledge base context"""
+    """Build a RAG-enhanced query with relevant knowledge base context."""
     from knowledge_base import search_knowledge, format_for_llm_context, get_for_taxpayer_type
 
-    # Determine search terms from user question
     question_lower = user_question.lower()
 
-    # Map question keywords to knowledge base categories
     keyword_map = {
         '80c': 'section_80c', 'elss': 'section_80c', 'ppf': 'section_80c', 'epf': 'section_80c',
         '80d': 'section_80d', 'health insurance': 'section_80d', 'mediclaim': 'section_80d',
         'nps': 'section_80ccd', '80ccd': 'section_80ccd',
         'hra': 'hra_exemption', 'house rent': 'hra_exemption',
         'home loan': 'home_loan', '24b': 'home_loan', 'housing loan': 'home_loan',
-        'capital gain': 'capital_gains_equity', 'ltcg': 'capital_gains_equity', 'stcg': 'capital_gains_equity',
+        'capital gain': 'capital_gains_2024', 'ltcg': 'capital_gains_2024', 'stcg': 'capital_gains_2024',
+        'new regime': 'new_regime_default', 'old regime': 'old_regime_deductions',
+        '87a': 'section_87a_marginal', 'rebate': 'section_87a_marginal',
         'esop': 'esop_taxation', 'stock option': 'esop_taxation', 'rsu': 'esop_taxation',
-        'f&o': 'fno_trading', 'futures': 'fno_trading', 'options': 'fno_trading', 'derivative': 'fno_trading',
-        'crypto': 'crypto_taxation', 'bitcoin': 'crypto_taxation', 'virtual digital': 'crypto_taxation',
-        'new regime': 'new_regime_slabs', 'old regime': 'old_regime_slabs', 'which regime': 'regime_comparison',
-        'slab': 'new_regime_slabs', 'tax rate': 'new_regime_slabs',
-        'budget 2026': 'budget_2026', 'new act': 'new_it_act_2025',
-        'senior citizen': 'senior_citizen_benefits', 'tds': 'tds_key_provisions',
-        'advance tax': 'advance_tax', 'rental': 'rental_income', 'rent income': 'rental_income',
-        'education loan': 'section_80e', '80e': 'section_80e',
-        'donation': 'section_80g', '80g': 'section_80g',
-        'saving': 'section_80tta_80ttb', '80tta': 'section_80tta_80ttb',
-        'business income': 'business_income', 'professional income': 'business_income',
-        'professional tax': 'professional_tax',
-        'surcharge': 'surcharge_cess', 'cess': 'surcharge_cess',
+        'nri': 'nri_taxation', 'non resident': 'nri_taxation', 'residency': 'residency_rules',
+        'business': 'business_presumptive', 'professional': 'professional_presumptive',
+        'f&o': 'fno_taxation', 'futures': 'fno_taxation', 'trading': 'fno_taxation',
+        'crypto': 'crypto_vda', 'bitcoin': 'crypto_vda', 'vda': 'crypto_vda',
+        'budget': 'budget_2025', 'surcharge': 'surcharge_2025',
+        'itr': 'itr_forms', 'filing': 'itr_forms', 'return': 'itr_forms',
+        'advance tax': 'advance_tax', 'tds': 'tds_rates',
+        'hra 8 cities': 'hra_8_cities', 'metro': 'hra_8_cities',
+        'form 16': 'form_16', 'salary slip': 'form_16',
+        'agricultural': 'agricultural_income', 'farm': 'agricultural_income',
+        'refund': 'refund_delays', 'delay': 'refund_delays',
+        'scrutiny': 'cbdt_scrutiny_2025',
+        'it rules 2026': 'it_rules_2026', 'tax year': 'tax_year_concept',
     }
 
-    # Find relevant entries
-    relevant_ids = set()
-    for keyword, entry_id in keyword_map.items():
+    matched_keys = set()
+    for keyword, kb_key in keyword_map.items():
         if keyword in question_lower:
-            relevant_ids.add(entry_id)
+            matched_keys.add(kb_key)
 
-    # If no specific match, provide regime comparison and relevant taxpayer entries
-    if not relevant_ids:
-        relevant_ids.add('regime_comparison')
-        relevant_ids.add('new_regime_slabs')
+    # Also do semantic search
+    search_results = search_knowledge(user_question)
+    for key, _, _ in search_results[:3]:
+        matched_keys.add(key)
 
-    # Add taxpayer-type specific entries
-    from knowledge_base import TAX_KNOWLEDGE_BASE
-    relevant_entries = [e for e in TAX_KNOWLEDGE_BASE if e['id'] in relevant_ids]
+    # Add profile-specific context
+    if taxpayer_profile:
+        tp_type = taxpayer_profile.get('taxpayer_type', 'salaried')
+        type_keys = get_for_taxpayer_type(tp_type)
+        matched_keys.update(type_keys[:2])
 
-    # Also add entries matching the taxpayer type
-    if taxpayer_profile and 'taxpayer_type' in taxpayer_profile:
-        tt = taxpayer_profile['taxpayer_type']
-        type_entries = [e for e in TAX_KNOWLEDGE_BASE
-                       if tt in e['applies_to'] and e['id'] not in relevant_ids]
-        relevant_entries.extend(type_entries[:2])  # Add max 2 more
+    # Build context from matched keys
+    context = format_for_llm_context(list(matched_keys)[:8])
 
-    context = format_for_llm_context(relevant_entries, max_entries=5)
+    # Add profile summary if available
+    profile_context = ""
+    if taxpayer_profile:
+        non_zero = {k: v for k, v in taxpayer_profile.items() if v and v != 0 and k != 'taxpayer_type'}
+        if non_zero:
+            profile_context = "\n\nUSER'S TAX PROFILE:\n"
+            for k, v in non_zero.items():
+                profile_context += f"- {k.replace('_', ' ').title()}: {v}\n"
 
     return {
-        'context': context,
-        'matched_sections': [e['section'] for e in relevant_entries],
-        'entry_count': len(relevant_entries),
+        "context": context + profile_context,
+        "matched_keys": list(matched_keys),
+        "has_profile": bool(taxpayer_profile),
     }
-
-
-# ── Feedback System ──
-
-def should_ask_feedback(session_interactions: int, last_feedback_at: int) -> bool:
-    """Determine if we should ask for feedback — non-intrusive timing"""
-    # Ask after every 5 meaningful interactions, minimum gap of 3 interactions
-    if session_interactions < 3:
-        return False
-    if session_interactions - last_feedback_at < 5:
-        return False
-    if session_interactions in [5, 15, 30]:  # Specific milestones
-        return True
-    return False
-
-
-FEEDBACK_PROMPTS = [
-    "Was this tax analysis helpful? A quick rating helps us improve.",
-    "How did we do? Your feedback helps TaxGuru get smarter.",
-    "Quick check — did this answer your question clearly?",
-]

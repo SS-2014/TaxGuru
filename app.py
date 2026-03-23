@@ -226,8 +226,8 @@ if 'active_profile' not in st.session_state:st.session_state.active_profile='Def
 if 'pc' not in st.session_state:st.session_state.pc=False
 if 'ch' not in st.session_state:st.session_state.ch=[]
 if 'vdb' not in st.session_state:st.session_state.vdb=TaxVectorDB();st.session_state.vdb.index_knowledge_base(TAX_KNOWLEDGE_BASE)
-try:K=os.environ.get("GEMINI_API_KEY","") or st.secrets.get("GEMINI_API_KEY","")
-except:K=os.environ.get("GEMINI_API_KEY","")
+try:K=os.environ.get("GROQ_API_KEY","") or st.secrets.get("GROQ_API_KEY","")
+except:K=os.environ.get("GROQ_API_KEY","")
 def P():return st.session_state.profiles.get(st.session_state.active_profile,TaxpayerProfile())
 def IC():return st.session_state.pc and st.session_state.active_profile in st.session_state.profiles
 # Profile indicator
